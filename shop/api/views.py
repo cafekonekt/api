@@ -1,16 +1,29 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from shop.models import FoodCategory, Menu, Outlet, FoodItem, ItemVariant, Addon, Cart, CartItem
+from shop.models import (
+    FoodCategory, 
+    Menu, 
+    Outlet, 
+    FoodItem, 
+    ItemVariant, 
+    Addon, 
+    Cart, 
+    CartItem,
+    OrderItem,
+    Table)
 from shop.api.serializers import (
     FoodCategorySerializer, 
     OutletSerializer, 
     ClientFoodCategorySerializer,
     CartItemSerializer,
-    FoodItemSerializer
+    FoodItemSerializer,
+    OrderSerializer,
+    TableSerializer
     )
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 
 class MenuAPIView(APIView):
     """
@@ -64,12 +77,24 @@ class GetOutletAPIView(APIView):
     API endpoint that returns a list of outlets.
     """
     permission_classes = []
-    def get(self, request, slug, format=None):
-        menu = Menu.objects.filter(menu_slug=slug).first()
+    def get(self, request, menu_slug, format=None):
+        menu = Menu.objects.filter(menu_slug=menu_slug).first()
         outlet = menu.outlet
         serializer = OutletSerializer(outlet)
         return Response(serializer.data)
     
+class GetTableAPIView(APIView):
+    """
+    API endpoint that returns a list of tables in an outlet.
+    """
+    permission_classes = []
+    def get(self, request, menu_slug, format=None):
+        menu = Menu.objects.filter(menu_slug=menu_slug).first()
+        outlet = menu.outlet
+        tables = Table.objects.filter(outlet=outlet)
+        serializer = TableSerializer(tables, many=True)
+        return Response(serializer.data)
+
 class CartView(APIView):
     def get(self, request, menu_slug):
         user = request.user
@@ -130,3 +155,50 @@ class CartView(APIView):
             cart_item.save()
 
         return Response(status=status.HTTP_200_OK)
+
+class CheckoutAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, menu_slug):
+        user = request.user
+        
+        # Get the cart
+        menu = get_object_or_404(Menu, menu_slug=menu_slug)
+        outlet = menu.outlet
+        cart = get_object_or_404(Cart, user=user, outlet=outlet)
+        cart_items = cart.items.all()
+        
+        if not cart_items.exists():
+            return Response({"detail": "Cart is empty."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Prepare order data
+        total_price = sum(item.get_total_price() for item in cart_items)
+        order_data = {
+            "user": user.id,
+            "outlet": cart.outlet.id,
+            "total": total_price,
+            "status": "pending",  # or some initial status
+            "order_type": request.data.get('order_type', 'dine-in'),  # or however you want to determine the order type
+        }
+
+        # Create the order
+        order_serializer = OrderSerializer(data=order_data)
+        order_serializer.is_valid(raise_exception=True)
+        order = order_serializer.save()
+
+        # Create OrderItems from CartItems
+        for cart_item in cart_items:
+            order_item = OrderItem(
+                order=order,
+                food_item=cart_item.food_item,
+                variant=cart_item.variant,
+                quantity=cart_item.quantity
+            )
+            order_item.save()
+            order_item.addons.set(cart_item.addons.all())
+        
+        # Optionally clear the cart
+        cart_items.delete()  # Or cart.delete() if you want to clear the entire cart
+        
+        return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)

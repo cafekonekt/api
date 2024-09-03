@@ -1,5 +1,6 @@
 from django.db import models
 from authentication.models import CustomUser
+import uuid
 import re
 
 class Shop(models.Model):
@@ -225,10 +226,18 @@ class Order(models.Model):
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled')
     ]
+    ORDER_TYPE_CHOICES = [
+        ('dine-in', 'Dine-In'),
+        ('takeaway', 'Takeaway'),
+        ('delivery', 'Delivery')
+    ]
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
+    table = models.ForeignKey('Table', on_delete=models.CASCADE, blank=True, null=True)
+    cooking_instructions = models.TextField(blank=True, null=True)
+    order_type = models.CharField(max_length=10, choices=ORDER_TYPE_CHOICES, default='dine-in')
     total = models.DecimalField(max_digits=10, decimal_places=2)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -248,8 +257,9 @@ class OrderItem(models.Model):
         ordering = ['food_item']
 
 class Table(models.Model):
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, blank=True, null=True)
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
-    table_number = models.PositiveIntegerField()
     capacity = models.PositiveIntegerField()
     area = models.ForeignKey('TableArea', on_delete=models.CASCADE, related_name='tables', blank=True, null=True)
     slug = models.SlugField(max_length=100, unique=True, blank=True, null=True)
@@ -257,15 +267,17 @@ class Table(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.table_number} - {self.outlet.name}"
+        return f"{self.name} - {self.outlet.name}"
     
     def save(self, *args, **kwargs):
         outlet_name = re.sub(r'[^a-zA-Z0-9]', '', self.outlet.name.lower().replace(' ', '-'))
-        self.slug = f"{outlet_name}-{self.table_number}"
+        name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
+        area = re.sub(r'[^a-zA-Z0-9]', '', self.area.name.lower().replace(' ', '-')) if self.area else ''
+        self.slug = f"{outlet_name}-{area}-{name}"
         super(Table, self).save(*args, **kwargs)
     
     class Meta:
-        ordering = ['table_number']
+        ordering = ['name']
 
 class TableArea(models.Model):
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)

@@ -12,7 +12,9 @@ from shop.models import (
     Table, 
     TableArea,
     VariantCategory,
-    ItemVariant
+    ItemVariant,
+    Order,
+    OrderItem
 )
 
 class VariantAdmin(admin.ModelAdmin):
@@ -32,3 +34,5 @@ admin.site.register(Table)
 admin.site.register(TableArea)
 admin.site.register(VariantCategory)
 admin.site.register(ItemVariant)
+admin.site.register(Order)
+admin.site.register(OrderItem)

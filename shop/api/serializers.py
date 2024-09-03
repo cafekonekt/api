@@ -9,7 +9,8 @@ from shop.models import (
     Outlet, 
     ItemVariant,
     CartItem,
-    Cart)
+    Order,
+    Table)
 
 class FoodTagSerializer(serializers.ModelSerializer):
     class Meta:
@@ -148,3 +149,19 @@ class OutletSerializer(serializers.ModelSerializer):
     def get_image_url(self, obj):
         """Return the image URL if it exists, else None."""
         return obj.shop.logo_url
+    
+class OrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ['id', 'user', 'outlet', 'table', 'cooking_instructions', 'order_type', 'total', 'status', 'created_at', 'updated_at']
+
+class TableSerializer(serializers.ModelSerializer):
+    area = serializers.SerializerMethodField()
+      
+    class Meta:
+        model = Table
+        fields = ['id', 'name', 'outlet', 'slug', 'area']
+
+    def get_area(self, obj):
+        """Return the area name of the table."""
+        return obj.area.name if obj.area else None
