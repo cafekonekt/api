@@ -1,5 +1,7 @@
 from django.db import models
 from authentication.models import CustomUser
+import uuid
+import re
 
 class Shop(models.Model):
     name = models.CharField(max_length=100)
@@ -19,40 +21,50 @@ class Outlet(models.Model):
     name = models.CharField(max_length=100)
     location = models.CharField(max_length=100)
     phone = models.CharField(max_length=15)
+    slug = models.SlugField(max_length=100, unique=True, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    outlet_manager = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='outlets', blank=True, null=True)
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        # slug should be all lowercase and separated by hyphens and alphanumeric
+        shop_name = re.sub(r'[^a-zA-Z0-9]', '', self.shop.name.lower().replace(' ', '-'))
+        outlet_name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
+        self.slug = f"{shop_name}-{outlet_name}"
+        super(Outlet, self).save(*args, **kwargs)
     
     class Meta:
         ordering = ['name']
 
-class OutletUser(models.Model):
-    outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE, related_name='users')
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='outlet_user_profile')
-    is_manager = models.BooleanField(default=False)
+class Menu(models.Model):
+    menu_slug = models.SlugField(max_length=100, unique=True, primary_key=True)
+    outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.email or self.user.phone_number} - {self.outlet.name}"
+        return self.menu_slug
 
     class Meta:
-        ordering = ['outlet', 'user']
+        ordering = ['created_at']
 
-class Menu(models.Model):
-    outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
-    name = models.CharField(max_length=100)
+class VariantCategory(models.Model):
+    name = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['name']
 
 class Variant(models.Model):
     name = models.CharField(max_length=50)
+    category = models.ForeignKey('VariantCategory', on_delete=models.CASCADE, related_name='variants', blank=True, null=True)
     description = models.TextField(blank=True, null=True)
 
     def __str__(self):
@@ -60,6 +72,17 @@ class Variant(models.Model):
 
     class Meta:
         ordering = ['name']
+
+class ItemVariant(models.Model):
+    food_item = models.ForeignKey('FoodItem', on_delete=models.CASCADE, related_name='item_variants')
+    variant = models.ForeignKey('Variant', on_delete=models.CASCADE, related_name='item_variants')
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.food_item.name} - {self.variant.name}"
+    
+    class Meta:
+        ordering = ['food_item']
 
 class Addon(models.Model):
     name = models.CharField(max_length=100)
@@ -102,9 +125,14 @@ class FoodItem(models.Model):
     image_url = models.URLField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    featured = models.BooleanField(default=False)
+
     addons = models.ManyToManyField(Addon, related_name='food_items', blank=True)
+    variant = models.ForeignKey(VariantCategory, on_delete=models.CASCADE, related_name='food_items', blank=True, null=True)
     tags = models.ManyToManyField('FoodTag', related_name='food_items', blank=True)
+    
     prepration_time = models.PositiveIntegerField(default=30)
+    slug = models.SlugField(max_length=100, unique=True, blank=True, null=True)
 
     def __str__(self):
         return self.name
@@ -112,6 +140,12 @@ class FoodItem(models.Model):
     class Meta:
         ordering = ['name']
 
+    def save(self, *args, **kwargs):
+        # slug should be all lowercase and separated by hyphens and alphanumeric
+        menu_slug = re.sub(r'[^a-zA-Z0-9]', '', self.menu.menu_slug.lower().replace(' ', '-'))
+        name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
+        self.slug = f"{menu_slug}-{name}"
+        super(FoodItem, self).save(*args, **kwargs)
 
 class FoodTag(models.Model):
     name = models.CharField(max_length=100)
@@ -125,7 +159,7 @@ class FoodTag(models.Model):
         ordering = ['name']
 
 class FoodCategory(models.Model):
-    menu = models.ForeignKey(Menu, on_delete=models.CASCADE)
+    menu = models.ForeignKey('Menu', on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -161,6 +195,7 @@ class Cart(models.Model):
         ordering = ['user']
 
 class CartItem(models.Model):
+    id = models.CharField(max_length=100, primary_key=True)
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     food_item = models.ForeignKey(FoodItem, on_delete=models.CASCADE, related_name='cart_items')
     variant = models.ForeignKey(Variant, on_delete=models.CASCADE, blank=True, null=True)
@@ -172,6 +207,15 @@ class CartItem(models.Model):
     def __str__(self):
         return f"{self.food_item.name} - {self.quantity}"
     
+    def get_total_price(self):
+        price = self.food_item.price
+        if self.variant:
+            # get price from ItemVariant for selected variant
+            price = ItemVariant.objects.get(food_item=self.food_item, variant=self.variant).price
+        for addon in self.addons.all():
+            price += addon.price
+        return price * self.quantity
+
     class Meta:
         ordering = ['food_item']
 
@@ -182,10 +226,18 @@ class Order(models.Model):
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled')
     ]
+    ORDER_TYPE_CHOICES = [
+        ('dine-in', 'Dine-In'),
+        ('takeaway', 'Takeaway'),
+        ('delivery', 'Delivery')
+    ]
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
+    table = models.ForeignKey('Table', on_delete=models.CASCADE, blank=True, null=True)
+    cooking_instructions = models.TextField(blank=True, null=True)
+    order_type = models.CharField(max_length=10, choices=ORDER_TYPE_CHOICES, default='dine-in')
     total = models.DecimalField(max_digits=10, decimal_places=2)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -203,3 +255,38 @@ class OrderItem(models.Model):
     
     class Meta:
         ordering = ['food_item']
+
+class Table(models.Model):
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, blank=True, null=True)
+    outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
+    capacity = models.PositiveIntegerField()
+    area = models.ForeignKey('TableArea', on_delete=models.CASCADE, related_name='tables', blank=True, null=True)
+    slug = models.SlugField(max_length=100, unique=True, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.outlet.name}"
+    
+    def save(self, *args, **kwargs):
+        outlet_name = re.sub(r'[^a-zA-Z0-9]', '', self.outlet.name.lower().replace(' ', '-'))
+        name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
+        area = re.sub(r'[^a-zA-Z0-9]', '', self.area.name.lower().replace(' ', '-')) if self.area else ''
+        self.slug = f"{outlet_name}-{area}-{name}"
+        super(Table, self).save(*args, **kwargs)
+    
+    class Meta:
+        ordering = ['name']
+
+class TableArea(models.Model):
+    outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        ordering = ['name']

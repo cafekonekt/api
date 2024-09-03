@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import firebase_admin
+from firebase_admin import credentials
 from datetime import timedelta
 from dotenv import load_dotenv
 import os
@@ -32,7 +34,8 @@ DEBUG = os.environ.get('DJANGO_DEBUG', False)
 
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS').split(',')
 
-FIREBASE_API_KEY = os.environ.get('FIREBASE_API_KEY', 'your-firebase-api-key')
+FAST2SMS_API_KEY="Q0AKVyno1kx3BcU8MD7PqGdRmO2XeLTCZ6lbjsEzwfv4tIFSrgAzOMDadKCWg2Zs3QqrcHNn0tjhw6BI"
+
 
 # Application definition
 
@@ -43,11 +46,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
+    'corsheaders',
     'authentication.apps.AuthenticationConfig',
     'shop.apps.ShopConfig',
-    'rest_framework',
-    'corsheaders',
-    'rest_framework_simplejwt.token_blacklist',
 ]
 
 MIDDLEWARE = [
@@ -122,13 +125,17 @@ AUTHENTICATION_BACKENDS = [
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.BasicAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
-    ]
+    ],
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(weeks=1),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": False,
