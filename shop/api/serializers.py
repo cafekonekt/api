@@ -1,6 +1,15 @@
 from rest_framework import serializers
 from rest_framework import viewsets
-from shop.models import FoodCategory, SubCategory, FoodItem , FoodTag, Addon, Outlet
+from shop.models import (
+    FoodCategory, 
+    SubCategory, 
+    FoodItem , 
+    FoodTag,
+    Addon, 
+    Outlet, 
+    ItemVariant,
+    CartItem,
+    Cart)
 
 class FoodTagSerializer(serializers.ModelSerializer):
     class Meta:
@@ -12,16 +21,43 @@ class AddonSerializer(serializers.ModelSerializer):
         model = Addon
         fields = ['id', 'name', 'price', 'description']
 
+class ItemVariantSerializer(serializers.ModelSerializer):
+    variant = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ItemVariant
+        fields = ['id', 'variant', 'price']
+
+    def get_variant(self, obj):
+        """Return the variant name."""
+        return obj.variant.name
+
 class FoodItemSerializer(serializers.ModelSerializer):
     addons = AddonSerializer(many=True, read_only=True)
     tags = FoodTagSerializer(many=True, read_only=True)
     food_subcategory = serializers.SerializerMethodField()
     status_color = serializers.SerializerMethodField()
     food_category = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
+    variants = serializers.SerializerMethodField()
 
     class Meta:
         model = FoodItem
-        fields = ['id', 'name', 'food_type', 'food_category', 'food_subcategory', 'description', 'price', 'image_url', 'addons', 'tags', 'prepration_time', 'status_color']
+        fields = [
+            'id', 
+            'name', 
+            'food_type', 
+            'food_category', 
+            'food_subcategory', 
+            'description', 
+            'price', 
+            'image_url', 
+            'addons', 
+            'tags', 
+            'prepration_time', 
+            'status_color', 
+            'rating',
+            'variants']
 
     def get_food_category(self, obj):
         """Return the category name if it exists, else None."""
@@ -30,6 +66,13 @@ class FoodItemSerializer(serializers.ModelSerializer):
     def get_food_subcategory(self, obj):
         """Return the subcategory name if it exists, else None."""
         return obj.food_subcategory.name if obj.food_subcategory else None
+    
+    def get_variants(self, obj):
+        """Return the variants of the food item."""
+        variants = ItemVariant.objects.filter(food_item=obj)
+        if variants:
+            return { "name": obj.variant.name, "type": ItemVariantSerializer(variants, many=True).data}
+        return None
 
     def get_status_color(self, obj):
         """Return the status color based on food_type."""
@@ -40,6 +83,28 @@ class FoodItemSerializer(serializers.ModelSerializer):
         elif obj.food_type == 'nonveg':
             return 'text-red-500'
         return 'text-green-500' 
+    
+    def get_rating(self, obj):
+        """Return the average rating of the food item."""
+        return 4.5
+
+class CartItemSerializer(serializers.ModelSerializer):
+    food_item = FoodItemSerializer()
+    addons = AddonSerializer(many=True)
+    variant = serializers.SerializerMethodField()
+    totalPrice = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CartItem
+        fields = ['id', 'food_item', 'variant', 'quantity', 'addons', 'totalPrice']
+
+    def get_variant(self, obj):
+        """Return the variant name."""
+        return obj.variant.name if obj.variant else None
+    
+    def get_totalPrice(self, obj):
+        """Return the total price of the cart item."""
+        return obj.get_total_price()
 
 class SubCategorySerializer(serializers.ModelSerializer):
     food_items = FoodItemSerializer(many=True, read_only=True)
@@ -60,8 +125,26 @@ class FoodCategorySerializer(serializers.ModelSerializer):
         """Return food items directly under this category (those without a subcategory)."""
         return FoodItemSerializer(obj.food_items.filter(food_subcategory__isnull=True), many=True).data
 
+class ClientFoodCategorySerializer(serializers.ModelSerializer):
+    sub_categories = SubCategorySerializer(many=True, read_only=True)
+    food_items = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FoodCategory
+        fields = ['id', 'name', 'sub_categories', 'food_items']
+
+    def get_food_items(self, obj):
+        """Return food items directly under this category (those without a subcategory)."""
+        return FoodItemSerializer(obj.food_items.filter(food_subcategory__isnull=True), many=True).data
 
 class OutletSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Outlet
-        fields = ['id', 'name', 'address', 'phone', 'image_url']
+        fields = ['id', 'name', 'location', 'phone', 'image_url', 'shop']
+        depth = 2
+
+    def get_image_url(self, obj):
+        """Return the image URL if it exists, else None."""
+        return obj.shop.logo_url
