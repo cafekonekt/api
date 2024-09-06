@@ -142,7 +142,7 @@ class FoodItem(models.Model):
 
     def save(self, *args, **kwargs):
         # slug should be all lowercase and separated by hyphens and alphanumeric
-        menu_slug = re.sub(r'[^a-zA-Z0-9]', '', self.menu.menu_slug.lower().replace(' ', '-'))
+        menu_slug = self.menu.menu_slug
         name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
         self.slug = f"{menu_slug}-{name}"
         super(FoodItem, self).save(*args, **kwargs)
@@ -227,10 +227,11 @@ class Order(models.Model):
         ('cancelled', 'Cancelled')
     ]
     ORDER_TYPE_CHOICES = [
-        ('dine-in', 'Dine-In'),
+        ('dine_in', 'Dine-In'),
         ('takeaway', 'Takeaway'),
         ('delivery', 'Delivery')
     ]
+    order_id = models.CharField(max_length=100, default=uuid.uuid4, editable=False, primary_key=True)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
     table = models.ForeignKey('Table', on_delete=models.CASCADE, blank=True, null=True)
@@ -255,6 +256,15 @@ class OrderItem(models.Model):
     
     class Meta:
         ordering = ['food_item']
+
+    def get_total_price(self):
+        price = self.food_item.price
+        if self.variant:
+            # get price from ItemVariant for selected variant
+            price = ItemVariant.objects.get(food_item=self.food_item, variant=self.variant).price
+        for addon in self.addons.all():
+            price += addon.price
+        return price * self.quantity
 
 class Table(models.Model):
     id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4, editable=False)

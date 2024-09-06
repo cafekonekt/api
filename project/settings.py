@@ -40,6 +40,7 @@ FAST2SMS_API_KEY="Q0AKVyno1kx3BcU8MD7PqGdRmO2XeLTCZ6lbjsEzwfv4tIFSrgAzOMDadKCWg2
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -84,6 +85,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = os.getenv('DJANGO_WSGI_APPLICATION')
 AUTH_USER_MODEL = 'authentication.CustomUser'
+ASGI_APPLICATION = "project.asgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
@@ -97,6 +99,16 @@ DATABASES = {
         "HOST": os.environ.get('DATABASE_HOST', "localhost"),
         "PORT": os.environ.get('DATABASE_PORT', "5432"),
     }
+}
+
+# Configure channel layers using Redis
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [('127.0.0.1', 6379)],
+        },
+    },
 }
 
 # Password validation
