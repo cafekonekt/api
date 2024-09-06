@@ -68,7 +68,6 @@ class SendOTPView(APIView):
     permission_classes = []
     def post(self, request, *args, **kwargs):
         serializer = SendOTPSerializer(data=request.data)
-        print(serializer)
         serializer.is_valid(raise_exception=True)
         otp_code = serializer.send_otp()
         return Response({"detail": "OTP sent successfully.", "otp": otp_code}, status=status.HTTP_200_OK)

@@ -10,6 +10,7 @@ from shop.models import (
     ItemVariant,
     CartItem,
     Order,
+    OrderItem,
     Table)
 
 class FoodTagSerializer(serializers.ModelSerializer):
@@ -24,11 +25,10 @@ class AddonSerializer(serializers.ModelSerializer):
 
 class ItemVariantSerializer(serializers.ModelSerializer):
     variant = serializers.SerializerMethodField()
-
     class Meta:
         model = ItemVariant
         fields = ['id', 'variant', 'price']
-
+    
     def get_variant(self, obj):
         """Return the variant name."""
         return obj.variant.name
@@ -98,14 +98,19 @@ class CartItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = CartItem
         fields = ['id', 'food_item', 'variant', 'quantity', 'addons', 'totalPrice']
-
-    def get_variant(self, obj):
-        """Return the variant name."""
-        return obj.variant.name if obj.variant else None
     
     def get_totalPrice(self, obj):
         """Return the total price of the cart item."""
         return obj.get_total_price()
+    
+    def get_variant(self, obj):
+        """Return the variant name."""
+        item_variant = ItemVariant.objects.filter(food_item=obj.food_item, variant=obj.variant).first()
+        if obj.variant:
+            return {
+                "name": obj.variant.name,
+                "price": item_variant.price
+            }
 
 class SubCategorySerializer(serializers.ModelSerializer):
     food_items = FoodItemSerializer(many=True, read_only=True)
@@ -150,10 +155,35 @@ class OutletSerializer(serializers.ModelSerializer):
         """Return the image URL if it exists, else None."""
         return obj.shop.logo_url
     
+class OrderItemSerializer(serializers.ModelSerializer):
+    food_item = FoodItemSerializer()
+    addons = AddonSerializer(many=True)
+    variant = serializers.SerializerMethodField()
+    totalPrice = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'food_item', 'variant', 'quantity', 'addons', 'totalPrice']
+
+    def get_variant(self, obj):
+        """Return the variant name."""
+        return obj.variant.name if obj.variant else None
+    
+    def get_totalPrice(self, obj):
+        """Return the total price of the order item."""
+        return obj.get_total_price()
+
+
 class OrderSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True)
     class Meta:
         model = Order
-        fields = ['id', 'user', 'outlet', 'table', 'cooking_instructions', 'order_type', 'total', 'status', 'created_at', 'updated_at']
+        fields = ['order_id', 'user', 'outlet', 'items', 'table', 'cooking_instructions', 'order_type', 'total', 'status', 'created_at', 'updated_at']
+
+class CheckoutSerializer(serializers.Serializer):
+    class Meta:
+        model = Order
+        fields = ["user", "outlet", "total", "status", "order_type", "table", "cooking_instructions"]
 
 class TableSerializer(serializers.ModelSerializer):
     area = serializers.SerializerMethodField()

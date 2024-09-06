@@ -42,7 +42,7 @@ class SendOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=15)
 
     def validate_phone_number(self, value):
-            if not value.isdigit() or len(value) != 10:
+            if len(value) <= 10:
                 raise serializers.ValidationError(_('Invalid phone number.'))
             try:
                 if not CustomUser.objects.filter(phone_number=value, role='customer').exists():
@@ -65,7 +65,7 @@ class SendOTPSerializer(serializers.Serializer):
         #         'authorization': settings.FAST2SMS_API_KEY,  # Replace with your actual API key from settings
         #         'variables_values': otp_code,
         #         'route': 'otp',
-        #         'numbers': phone_number
+        #         'numbers': phone_number[:-10]
         #     }, headers={
         #         'Cache-Control': 'no-cache'
         #     }
