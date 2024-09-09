@@ -11,7 +11,8 @@ from shop.models import (
     CartItem,
     OrderItem,
     Table,
-    Order)
+    Order,
+    TableArea)
 from shop.api.serializers import (
     FoodCategorySerializer, 
     OutletSerializer, 
@@ -20,7 +21,8 @@ from shop.api.serializers import (
     FoodItemSerializer,
     OrderSerializer,
     CheckoutSerializer,
-    TableSerializer
+    TableSerializer,
+    AreaSerializer
     )
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -40,6 +42,7 @@ class MenuAPIView(APIView):
         outlet = Outlet.objects.filter(outlet_manager=user).first()
         menu = Menu.objects.filter(outlet=outlet).first()
         categories = FoodCategory.objects.filter(menu=menu)
+
         serializer = FoodCategorySerializer(categories, many=True)
         return Response(serializer.data)
 
@@ -84,9 +87,11 @@ class GetOutletAPIView(APIView):
     permission_classes = []
     def get(self, request, menu_slug, format=None):
         menu = Menu.objects.filter(menu_slug=menu_slug).first()
-        outlet = menu.outlet
-        serializer = OutletSerializer(outlet)
-        return Response(serializer.data)
+        if menu:
+            outlet = menu.outlet
+            serializer = OutletSerializer(outlet)
+            return Response(serializer.data)
+        return Response({"detail": "Menu not found."}, status=status.HTTP_404_NOT_FOUND)
     
 class GetTableAPIView(APIView):
     """
@@ -99,6 +104,58 @@ class GetTableAPIView(APIView):
         tables = Table.objects.filter(outlet=outlet)
         serializer = TableSerializer(tables, many=True)
         return Response(serializer.data)
+
+class GetTableDetail(APIView):
+    """
+    API endpoint that returns a list of tables in an outlet.
+    """
+    permission_classes = []
+    def get(self, request, table_slug, format=None):
+        table = Table.objects.filter(id=table_slug).first()
+        serializer = TableSerializer(table)
+        return Response(serializer.data)
+
+class AreaAPIView(APIView):
+    """
+    API endpoint that returns a list of tables in an outlet.
+    """
+    permission_classes = []
+    def get(self, request, format=None):
+        areas = TableArea.objects.all()
+        serializer = AreaSerializer(areas, many=True)
+        return Response(serializer.data)
+    
+    def post(self, request, format=None):
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        data = request.data
+        area = TableArea.objects.create(outlet=outlet, **data)
+        serializer = AreaSerializer(area)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+class GetTableSellerAPIView(APIView):
+    """
+    API endpoint that returns a list of tables in an outlet.
+    """
+    permission_classes = [IsAuthenticated]
+    def get(self, request, format=None):
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        tables = Table.objects.filter(outlet=outlet)
+        serializer = TableSerializer(tables, many=True)
+        return Response(serializer.data)
+    
+    def post(self, request, format=None):
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        data = request.data
+        name = data.get('name')
+        capacity = data.get('capacity')
+        area = data.get('area')
+        area = TableArea.objects.filter(id=area).first()
+        table = Table.objects.create(outlet=outlet, name=name, capacity=capacity, area=area)
+        serializer = TableSerializer(table)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class CartView(APIView):
     def get(self, request, menu_slug):
@@ -143,7 +200,10 @@ class CartView(APIView):
         cart = get_object_or_404(Cart, user=user, outlet=outlet)
         cart_item = get_object_or_404(CartItem, id=item_id, cart=cart)
         cart_item.delete()
-        return Response({"message": "Item removed from cart."}, status=status.HTTP_200_OK)
+
+        # Return all the cart items
+        serializer = CartItemSerializer(cart.items.all(), many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, menu_slug, item_id):
         user = request.user
@@ -200,13 +260,9 @@ class CheckoutAPIView(APIView):
             "cooking_instructions": cooking_instructions
         }
 
-        print(order_data, 'order_data')
 
         # Create the order
         order_serializer = CheckoutSerializer(data=order_data)
-        print(order_serializer.is_valid(), 'order_serializer')
-        print(order_serializer.errors, 'order_serializer.errors')
-
         order_serializer.is_valid(raise_exception=True)
         order = Order.objects.create(**order_data)
         
@@ -246,15 +302,22 @@ class CheckoutAPIView(APIView):
 
 class OrderAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    def get(self, request, menu_slug=None):
+    def get(self, request, menu_slug=None, order_id=None):
         user = request.user
-        if menu_slug:
+        if order_id:
+            order = get_object_or_404(Order, order_id=order_id)
+            if user.role == 'owner' and order.outlet.outlet_manager != user:
+                return Response({"detail": "You are not authorized to view this order."}, status=status.HTTP_403_FORBIDDEN)
+            elif user.role == 'customer' and order.user != user:
+                return Response({"detail": "You are not authorized to view this order."}, status=status.HTTP_403_FORBIDDEN)
+            serializer = OrderSerializer(order)
+            return Response(serializer.data)
+        elif user.role == 'owner':
+            outlet = Outlet.objects.filter(outlet_manager=user).first()
+            orders = Order.objects.filter(outlet=outlet).order_by('-created_at')
+        elif menu_slug:
             menu = get_object_or_404(Menu, menu_slug=menu_slug)
-            if user.role == 'owner':
-                print('owner')
-                orders = Order.objects.filter(outlet=menu.outlet).order_by('-created_at')
-            else:
-                orders = Order.objects.filter(outlet=menu.outlet, user=user).order_by('-created_at')
+            orders = Order.objects.filter(outlet=menu.outlet, user=user).order_by('-created_at')
         else:
             orders = Order.objects.filter(user=user).order_by('-created_at')
         serializer = OrderSerializer(orders, many=True)
