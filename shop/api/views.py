@@ -93,6 +93,41 @@ class GetOutletAPIView(APIView):
             return Response(serializer.data)
         return Response({"detail": "Menu not found."}, status=status.HTTP_404_NOT_FOUND)
     
+
+class OutletAPIView(APIView):
+    """
+    API endpoint that returns a list of outlets.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, format=None):
+        user = request.user
+        outlets = Outlet.objects.filter(outlet_manager=user).first()
+        serializer = OutletSerializer(outlets)
+        return Response(serializer.data)
+
+    def put(self, request, outlet_id, format=None):
+        user = request.user
+        outlet = Outlet.objects.filter(id=outlet_id, outlet_manager=user).first()
+        data = request.data
+        outlet.name = data.get('name', outlet.name)
+        outlet.description = data.get('description', outlet.description)
+        outlet.address = data.get('address', outlet.address)
+        outlet.location = data.get('location', outlet.location)
+
+        if 'logo' in request.FILES:
+            outlet.logo = request.FILES['logo']
+
+        minimum_order_value = data.get('minimum_order_value', outlet.minimum_order_value)
+        average_preparation_time = data.get('average_preparation_time', outlet.average_preparation_time)
+        service = data.get('service', outlet.service)
+
+        outlet.phone = data.get('phone', outlet.phone)
+        outlet.save()
+        serializer = OutletSerializer(outlet)
+        return Response(serializer.data, status=status.HTTP_200_OK) 
+
+
 class GetTableAPIView(APIView):
     """
     API endpoint that returns a list of tables in an outlet.
@@ -156,6 +191,31 @@ class GetTableSellerAPIView(APIView):
         table = Table.objects.create(outlet=outlet, name=name, capacity=capacity, area=area)
         serializer = TableSerializer(table)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+class TableSellerAPIView(APIView):
+    """
+    API endpoint that returns a list of tables in an outlet.
+    """
+    permission_classes = [IsAuthenticated]   
+    def put(self, request, table_slug, format=None):
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        table = Table.objects.filter(id=table_slug, outlet=outlet).first()
+        data = request.data
+        table.name = data.get('name', table.name)
+        table.capacity = data.get('capacity', table.capacity)
+        table.area = TableArea.objects.filter(id=data.get('area', table.area.id)).first()
+        table.save()
+        serializer = TableSerializer(table)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def delete(self, request, table_slug, format=None):
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        table = Table.objects.filter(id=table_slug, outlet=outlet).first()
+        table.delete()
+        return Response({"message": "Table deleted successfully."}, status=status.HTTP_200_OK)
+
 
 class CartView(APIView):
     def get(self, request, menu_slug):
@@ -313,6 +373,7 @@ class OrderAPIView(APIView):
             serializer = OrderSerializer(order)
             return Response(serializer.data)
         elif user.role == 'owner':
+            print("Owner")
             outlet = Outlet.objects.filter(outlet_manager=user).first()
             orders = Order.objects.filter(outlet=outlet).order_by('-created_at')
         elif menu_slug:

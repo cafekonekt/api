@@ -2,12 +2,14 @@ from django.urls import path
 from shop.api.views import (
     MenuAPIView, 
     GetOutletAPIView, 
+    OutletAPIView,
     ClientMenuAPIView, 
     CartView, 
     CheckoutAPIView, 
     GetTableAPIView,
     GetTableDetail,
     GetTableSellerAPIView,
+    TableSellerAPIView,
     OrderAPIView,
     AreaAPIView,
 )
@@ -19,12 +21,13 @@ urlpatterns = [
     path('client-menu/<slug:menu_slug>', ClientMenuAPIView.as_view(), name='category'),
 
     path('outlet/<slug:menu_slug>', GetOutletAPIView.as_view(), name='get-outlet'),
+    path('outlet/', OutletAPIView.as_view(), name='outlet-detail'),
     path('tables/<slug:menu_slug>', GetTableAPIView.as_view(), name='get-tables'),
     path('table/<slug:table_slug>', GetTableDetail.as_view(), name='table'),
 
     path('area/', AreaAPIView.as_view(), name='area'),
     path('tables/', GetTableSellerAPIView.as_view(), name='table-seller'),
-
+    path('tables/<slug:table_slug>/', TableSellerAPIView.as_view(), name='table-seller-item'),
     
     path('cart/<slug:menu_slug>/', CartView.as_view(), name='cart'),
     path('cart/<slug:menu_slug>/<slug:item_id>/', CartView.as_view(), name='cart_item'),

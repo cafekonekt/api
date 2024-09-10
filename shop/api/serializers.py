@@ -146,17 +146,39 @@ class ClientFoodCategorySerializer(serializers.ModelSerializer):
         return FoodItemSerializer(obj.food_items.filter(food_subcategory__isnull=True), many=True).data
 
 class OutletSerializer(serializers.ModelSerializer):
-    image_url = serializers.SerializerMethodField()
+    SERVICE_CHOICES = [
+        ('dine_in', 'Dine-In'),
+        ('takeaway', 'Takeaway'),
+        ('delivery', 'Delivery')
+    ]
+    logo = serializers.SerializerMethodField()
+    services = serializers.ListField(
+        child=serializers.ChoiceField(choices=[choice[0] for choice in SERVICE_CHOICES])
+    )
 
     class Meta:
         model = Outlet
-        fields = ['id', 'name', 'location', 'phone', 'image_url', 'shop']
+        fields = ['id', 'name', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'shop', 'services', 'slug']
         depth = 2
 
-    def get_image_url(self, obj):
+    def get_logo(self, obj):
         """Return the image URL if it exists, else None."""
-        return obj.shop.logo_url
-    
+        if obj.logo:
+            return obj.logo
+        return None
+
+    def to_representation(self, instance):
+        """Convert the comma-separated string back into a list for representation."""
+        representation = super().to_representation(instance)
+        representation['services'] = instance.services.split(',')
+        return representation
+
+    def to_internal_value(self, data):
+        """Convert the list of services to a comma-separated string before saving."""
+        internal_value = super().to_internal_value(data)
+        internal_value['services'] = ','.join(internal_value['services'])
+        return internal_value
+
 class OrderItemSerializer(serializers.ModelSerializer):
     food_item = FoodItemSerializer()
     addons = AddonSerializer(many=True)

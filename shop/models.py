@@ -32,8 +32,8 @@ class Outlet(models.Model):
     logo = models.ImageField(upload_to='outlet_logos/', blank=True, null=True)
     minimum_order_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     average_preparation_time = models.PositiveIntegerField(default=30)
-    service = models.CharField(max_length=10, choices=SERVICE_CHOICES, default='dine_in')
-
+    services = models.CharField(max_length=100, default='dine_in')
+    
     email = models.EmailField(null=True, blank=True)
     phone = models.CharField(max_length=15)
     whatsapp = models.CharField(max_length=15, null=True, blank=True)
