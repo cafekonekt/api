@@ -30,7 +30,7 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-
+import json
 
 class MenuAPIView(APIView):
     """
@@ -346,7 +346,7 @@ class CheckoutAPIView(APIView):
             f'seller_{menu_slug}',
             {
                 'type': 'seller_notification',
-                'message': f'New order received: {order.order_id}'
+                'message': OrderSerializer(order).data
             }
         )
 
@@ -364,6 +364,7 @@ class OrderAPIView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, menu_slug=None, order_id=None):
         user = request.user
+        print(user)
         if order_id:
             order = get_object_or_404(Order, order_id=order_id)
             if user.role == 'owner' and order.outlet.outlet_manager != user:
@@ -383,3 +384,12 @@ class OrderAPIView(APIView):
             orders = Order.objects.filter(user=user).order_by('-created_at')
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data)
+
+class SocketSeller(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        menu = Menu.objects.filter(outlet=outlet).first()
+        url = f'/ws/sellers/{menu.menu_slug}'
+        return Response({"url": url}, status=status.HTTP_200_OK)

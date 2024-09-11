@@ -12,6 +12,7 @@ from shop.api.views import (
     TableSellerAPIView,
     OrderAPIView,
     AreaAPIView,
+    SocketSeller
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -36,4 +37,5 @@ urlpatterns = [
     path('orders/', OrderAPIView.as_view(), name='orders'),
     path('order/<slug:order_id>/', OrderAPIView.as_view(), name='orders'),
     path('orders/<slug:menu_slug>/', OrderAPIView.as_view(), name='orders'),
+    path('subscription/', SocketSeller.as_view(), name='subscription'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
