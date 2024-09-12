@@ -11,6 +11,7 @@ from shop.api.views import (
     GetTableSellerAPIView,
     TableSellerAPIView,
     OrderAPIView,
+    LiveOrders,
     AreaAPIView,
     SocketSeller
 )
@@ -35,6 +36,8 @@ urlpatterns = [
 
     path('checkout/<slug:menu_slug>/', CheckoutAPIView.as_view(), name='checkout'),
     path('orders/', OrderAPIView.as_view(), name='orders'),
+    path('live-orders/', LiveOrders.as_view(), name='live-orders'),
+    path('live-orders/<slug:order_id>/', LiveOrders.as_view(), name='live-orders-detail'),
     path('order/<slug:order_id>/', OrderAPIView.as_view(), name='orders'),
     path('orders/<slug:menu_slug>/', OrderAPIView.as_view(), name='orders'),
     path('subscription/', SocketSeller.as_view(), name='subscription'),

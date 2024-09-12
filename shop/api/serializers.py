@@ -201,9 +201,14 @@ class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True)
     user = serializers.SerializerMethodField()
     table = serializers.SerializerMethodField()
+    total = serializers.SerializerMethodField()
+
     class Meta:
         model = Order
         fields = ['order_id', 'user', 'outlet', 'items', 'table', 'cooking_instructions', 'order_type', 'total', 'status', 'created_at', 'updated_at']
+
+    def get_total(self, obj):
+        return float(obj.total)
 
     def get_user(self, obj):
         """Return the user name."""

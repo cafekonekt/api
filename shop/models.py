@@ -318,7 +318,7 @@ class OrderItem(models.Model):
             price = ItemVariant.objects.get(food_item=self.food_item, variant=self.variant).price
         for addon in self.addons.all():
             price += addon.price
-        return price * self.quantity
+        return float(price * self.quantity)
 
 class Table(models.Model):
     id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4, editable=False)

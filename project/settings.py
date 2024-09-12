@@ -41,15 +41,15 @@ FAST2SMS_API_KEY="Q0AKVyno1kx3BcU8MD7PqGdRmO2XeLTCZ6lbjsEzwfv4tIFSrgAzOMDadKCWg2
 
 INSTALLED_APPS = [
     'daphne',
-    'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
+    'django.contrib.admin',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
-    'corsheaders',
     'authentication.apps.AuthenticationConfig',
     'shop.apps.ShopConfig',
 ]
@@ -106,7 +106,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [('127.0.0.1', 6379)],
+            'hosts': [('redis', 6379)],
         },
     },
 }
@@ -184,7 +184,7 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSlidingSerializer",
 }
 
-CORS_ALLOWED_ORIGINS = ['http://localhost:3000']
+CORS_ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:3001']
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
