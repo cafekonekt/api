@@ -11,7 +11,9 @@ from shop.models import (
     CartItem,
     Order,
     OrderItem,
-    Table)
+    Table,
+    TableArea,
+    Menu)
 
 class FoodTagSerializer(serializers.ModelSerializer):
     class Meta:
@@ -24,12 +26,12 @@ class AddonSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'price', 'description']
 
 class ItemVariantSerializer(serializers.ModelSerializer):
-    variant = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField()
     class Meta:
         model = ItemVariant
-        fields = ['id', 'variant', 'price']
+        fields = ['id', 'name', 'price']
     
-    def get_variant(self, obj):
+    def get_name(self, obj):
         """Return the variant name."""
         return obj.variant.name
 
@@ -144,17 +146,39 @@ class ClientFoodCategorySerializer(serializers.ModelSerializer):
         return FoodItemSerializer(obj.food_items.filter(food_subcategory__isnull=True), many=True).data
 
 class OutletSerializer(serializers.ModelSerializer):
-    image_url = serializers.SerializerMethodField()
+    SERVICE_CHOICES = [
+        ('dine_in', 'Dine-In'),
+        ('takeaway', 'Takeaway'),
+        ('delivery', 'Delivery')
+    ]
+    logo = serializers.SerializerMethodField()
+    services = serializers.ListField(
+        child=serializers.ChoiceField(choices=[choice[0] for choice in SERVICE_CHOICES])
+    )
 
     class Meta:
         model = Outlet
-        fields = ['id', 'name', 'location', 'phone', 'image_url', 'shop']
+        fields = ['id', 'name', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'shop', 'services', 'slug']
         depth = 2
 
-    def get_image_url(self, obj):
+    def get_logo(self, obj):
         """Return the image URL if it exists, else None."""
-        return obj.shop.logo_url
-    
+        if obj.logo:
+            return obj.logo
+        return None
+
+    def to_representation(self, instance):
+        """Convert the comma-separated string back into a list for representation."""
+        representation = super().to_representation(instance)
+        representation['services'] = instance.services.split(',')
+        return representation
+
+    def to_internal_value(self, data):
+        """Convert the list of services to a comma-separated string before saving."""
+        internal_value = super().to_internal_value(data)
+        internal_value['services'] = ','.join(internal_value['services'])
+        return internal_value
+
 class OrderItemSerializer(serializers.ModelSerializer):
     food_item = FoodItemSerializer()
     addons = AddonSerializer(many=True)
@@ -173,13 +197,27 @@ class OrderItemSerializer(serializers.ModelSerializer):
         """Return the total price of the order item."""
         return obj.get_total_price()
 
-
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True)
+    user = serializers.SerializerMethodField()
+    table = serializers.SerializerMethodField()
+    total = serializers.SerializerMethodField()
+
     class Meta:
         model = Order
         fields = ['order_id', 'user', 'outlet', 'items', 'table', 'cooking_instructions', 'order_type', 'total', 'status', 'created_at', 'updated_at']
 
+    def get_total(self, obj):
+        return float(obj.total)
+
+    def get_user(self, obj):
+        """Return the user name."""
+        return obj.user.name
+    
+    def get_table(self, obj):
+        """Return the table name."""
+        return obj.table.name if obj.table else None
+    
 class CheckoutSerializer(serializers.Serializer):
     class Meta:
         model = Order
@@ -187,11 +225,28 @@ class CheckoutSerializer(serializers.Serializer):
 
 class TableSerializer(serializers.ModelSerializer):
     area = serializers.SerializerMethodField()
+    url = serializers.SerializerMethodField()
+    outlet = serializers.SerializerMethodField()
       
     class Meta:
         model = Table
-        fields = ['id', 'name', 'outlet', 'slug', 'area']
+        fields = ['id', 'name', 'outlet', 'slug', 'area', 'capacity', 'url']
 
     def get_area(self, obj):
         """Return the area name of the table."""
         return obj.area.name if obj.area else None
+    
+    def get_url(self, obj):
+        outlet = obj.outlet
+        menu_slug = Menu.objects.filter(outlet=outlet).first().menu_slug
+        return f"/{menu_slug}/{obj.id}/"
+    
+    def get_outlet(self, obj):
+        """Return the outlet name of the table."""
+        return obj.outlet.name if obj.outlet else None
+
+class AreaSerializer(serializers.ModelSerializer):
+    outlet = OutletSerializer()
+    class Meta:
+        model = TableArea
+        fields = ['id', 'name', 'outlet']

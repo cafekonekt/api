@@ -17,13 +17,32 @@ class Shop(models.Model):
         ordering = ['name']
 
 class Outlet(models.Model):
+    SERVICE_CHOICES = [
+        ('dine_in', 'Dine-In'),
+        ('takeaway', 'Takeaway'),
+        ('delivery', 'Delivery')
+    ]
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+
+    address = models.TextField(null=True, blank=True)
     location = models.CharField(max_length=100)
+
+    logo = models.ImageField(upload_to='outlet_logos/', blank=True, null=True)
+    minimum_order_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    average_preparation_time = models.PositiveIntegerField(default=30)
+    services = models.CharField(max_length=100, default='dine_in')
+    
+    email = models.EmailField(null=True, blank=True)
     phone = models.CharField(max_length=15)
+    whatsapp = models.CharField(max_length=15, null=True, blank=True)
+
     slug = models.SlugField(max_length=100, unique=True, blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
     outlet_manager = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='outlets', blank=True, null=True)
 
     def __str__(self):
@@ -38,6 +57,41 @@ class Outlet(models.Model):
     
     class Meta:
         ordering = ['name']
+
+class OutletImage(models.Model):
+    outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='outlet_images/')  # Folder where images will be stored
+    caption = models.CharField(max_length=255, blank=True, null=True)  # Optional caption for the image
+    order = models.PositiveIntegerField(default=0)  # Order of the image in the gallery
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'uploaded_at']  # Images ordered by custom order, then upload time
+
+    def __str__(self):
+        return f"Image {self.id} for {self.outlet.name}"
+
+class OperatingHours(models.Model):
+    DAYS_OF_WEEK = [
+        ('Monday', 'Monday'),
+        ('Tuesday', 'Tuesday'),
+        ('Wednesday', 'Wednesday'),
+        ('Thursday', 'Thursday'),
+        ('Friday', 'Friday'),
+        ('Saturday', 'Saturday'),
+        ('Sunday', 'Sunday'),
+    ]
+
+    outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE, related_name='operating_hours')
+    day_of_week = models.CharField(max_length=9, choices=DAYS_OF_WEEK)
+    opening_time = models.TimeField()
+    closing_time = models.TimeField()
+
+    class Meta:
+        unique_together = ('outlet', 'day_of_week')  # Ensures no duplicate entries for the same day of the week
+
+    def __str__(self):
+        return f"{self.outlet.name} - {self.day_of_week}: {self.opening_time} to {self.closing_time}"
 
 class Menu(models.Model):
     menu_slug = models.SlugField(max_length=100, unique=True, primary_key=True)
@@ -264,14 +318,14 @@ class OrderItem(models.Model):
             price = ItemVariant.objects.get(food_item=self.food_item, variant=self.variant).price
         for addon in self.addons.all():
             price += addon.price
-        return price * self.quantity
+        return float(price * self.quantity)
 
 class Table(models.Model):
     id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=100, blank=True, null=True)
+    name = models.CharField(max_length=100)
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
     capacity = models.PositiveIntegerField()
-    area = models.ForeignKey('TableArea', on_delete=models.CASCADE, related_name='tables', blank=True, null=True)
+    area = models.ForeignKey('TableArea', on_delete=models.CASCADE, related_name='tables')
     slug = models.SlugField(max_length=100, unique=True, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
