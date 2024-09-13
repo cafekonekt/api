@@ -1,17 +1,11 @@
 #!/bin/sh
 
-if [ "$DATABASE" = "postgres" ]
-then
-    echo "Waiting for postgres..."
+# Apply database migrations
+python manage.py makemigrations --no-input
+python manage.py migrate --no-input
 
-    while ! nc -z $SQL_HOST $SQL_PORT; do
-      sleep 0.1
-    done
+# Create superuser
+DJANGO_SUPERUSER_PASSWORD=cafekonekt@gmail.com python manage.py createsuperuser --name admin --email cafekonekt@gmail.com --no-input
 
-    echo "PostgreSQL started"
-fi
-
-python manage.py flush --no-input
-python manage.py migrate
-
-exec "$@"
+# Collect static files
+python manage.py collectstatic --no-input --clear
