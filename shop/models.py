@@ -139,7 +139,15 @@ class ItemVariant(models.Model):
         ordering = ['food_item']
 
 class Addon(models.Model):
+    ADDONTYPE_CHOICES = [
+        ('veg', 'Veg'),
+        ('egg', 'Egg'),
+        ('nonveg', 'Non-Veg')
+    ]
+    
     name = models.CharField(max_length=100)
+    menu = models.ForeignKey('Menu', on_delete=models.CASCADE, related_name='addons')
+    addon_type = models.CharField(max_length=10, choices=ADDONTYPE_CHOICES, default="veg")
     category = models.ForeignKey('AddonCategory', on_delete=models.CASCADE, related_name='addons', blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField(blank=True, null=True)
@@ -153,6 +161,7 @@ class Addon(models.Model):
         ordering = ['name']
 
 class AddonCategory(models.Model):
+    menu = models.ForeignKey('Menu', on_delete=models.CASCADE, related_name='addon_categories')
     name = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

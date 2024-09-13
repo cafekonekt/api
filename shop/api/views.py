@@ -7,6 +7,7 @@ from shop.models import (
     FoodItem,
     ItemVariant,
     Addon,
+    AddonCategory,
     Cart,
     CartItem,
     OrderItem,
@@ -22,7 +23,8 @@ from shop.api.serializers import (
     OrderSerializer,
     CheckoutSerializer,
     TableSerializer,
-    AreaSerializer
+    AreaSerializer,
+    AddonCategorySerializer,
     )
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -45,6 +47,20 @@ class MenuAPIView(APIView):
         categories = FoodCategory.objects.filter(menu=menu)
 
         serializer = FoodCategorySerializer(categories, many=True)
+        return Response(serializer.data)
+
+class AddonAPIView(APIView):
+    """
+    API endpoint that returns a list of addons.
+    """
+    permission_classes = [IsAuthenticated]
+    def get(self, request, format=None):
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        menu = Menu.objects.filter(outlet=outlet).first()
+        categories = AddonCategory.objects.filter(menu=menu)
+        
+        serializer = AddonCategorySerializer(categories, many=True)
         return Response(serializer.data)
 
 class ClientMenuAPIView(APIView):
@@ -325,22 +341,22 @@ class CheckoutAPIView(APIView):
         # Create the order
         order_serializer = CheckoutSerializer(data=order_data)
         order_serializer.is_valid(raise_exception=True)
-        # order = Order.objects.create(**order_data)
-        order = Order.objects.all()[4]
+        order = Order.objects.create(**order_data)
+        # order = Order.objects.all()[4]
 
-        # # Create OrderItems from CartItems
-        # for cart_item in cart_items:
-        #     order_item = OrderItem(
-        #         order=order,
-        #         food_item=cart_item.food_item,
-        #         variant=cart_item.variant,
-        #         quantity=cart_item.quantity
-        #     )
-        #     order_item.save()
-        #     order_item.addons.set(cart_item.addons.all())
+        # Create OrderItems from CartItems
+        for cart_item in cart_items:
+            order_item = OrderItem(
+                order=order,
+                food_item=cart_item.food_item,
+                variant=cart_item.variant,
+                quantity=cart_item.quantity
+            )
+            order_item.save()
+            order_item.addons.set(cart_item.addons.all())
 
-        # # Optionally clear the cart
-        # cart.delete()
+        # Optionally clear the cart
+        cart.delete()
 
         # Notify the kitchen staff
         channel_layer = get_channel_layer()

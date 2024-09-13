@@ -1,6 +1,7 @@
 from django.urls import path
 from shop.api.views import (
     MenuAPIView, 
+    AddonAPIView,
     GetOutletAPIView, 
     OutletAPIView,
     ClientMenuAPIView, 
@@ -20,8 +21,9 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('menu/', MenuAPIView.as_view(), name='menu'),
+    path('addons/', AddonAPIView.as_view(), name='addons'),
+    
     path('client-menu/<slug:menu_slug>', ClientMenuAPIView.as_view(), name='category'),
-
     path('outlet/<slug:menu_slug>', GetOutletAPIView.as_view(), name='get-outlet'),
     path('outlet/', OutletAPIView.as_view(), name='outlet-detail'),
     path('tables/<slug:menu_slug>', GetTableAPIView.as_view(), name='get-tables'),
