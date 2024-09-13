@@ -6,6 +6,7 @@ from shop.models import (
     FoodItem , 
     FoodTag,
     Addon, 
+    AddonCategory,
     Outlet, 
     ItemVariant,
     CartItem,
@@ -25,6 +26,17 @@ class AddonSerializer(serializers.ModelSerializer):
         model = Addon
         fields = ['id', 'name', 'price', 'description']
 
+class AddonCategorySerializer(serializers.ModelSerializer):
+    addons = serializers.SerializerMethodField()
+    class Meta:
+        model = AddonCategory
+        fields = ['id', 'name', 'addons']
+    
+    def get_addons(self, obj):
+        """Return the addons of the category."""
+        addons = Addon.objects.filter(category=obj)
+        return AddonSerializer(obj.addons.filter(category=obj), many=True).data
+    
 class ItemVariantSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     class Meta:
