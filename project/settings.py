@@ -11,8 +11,6 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
-import firebase_admin
-from firebase_admin import credentials
 from datetime import timedelta
 from dotenv import load_dotenv
 import os
@@ -34,7 +32,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', False)
 
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS').split(',')
 
-FAST2SMS_API_KEY="Q0AKVyno1kx3BcU8MD7PqGdRmO2XeLTCZ6lbjsEzwfv4tIFSrgAzOMDadKCWg2Zs3QqrcHNn0tjhw6BI"
+FAST2SMS_API_KEY=os.getenv('FAST2SMS_API_KEY')
 
 
 # Application definition
@@ -184,7 +182,7 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSlidingSerializer",
 }
 
-CORS_ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:3001']
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS').split(",")
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
