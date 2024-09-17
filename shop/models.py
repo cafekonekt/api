@@ -256,9 +256,11 @@ class Cart(models.Model):
     
     class Meta:
         ordering = ['user']
+        unique_together = ('user', 'outlet')
 
 class CartItem(models.Model):
-    id = models.CharField(max_length=100, primary_key=True)
+    id = models.AutoField(primary_key=True)
+    item_id = models.CharField(max_length=100)
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     food_item = models.ForeignKey(FoodItem, on_delete=models.CASCADE, related_name='cart_items')
     variant = models.ForeignKey(Variant, on_delete=models.CASCADE, blank=True, null=True)
@@ -281,6 +283,7 @@ class CartItem(models.Model):
 
     class Meta:
         ordering = ['food_item']
+        unique_together = (('cart', 'item_id'))
 
 class Order(models.Model):
     STATUS_CHOICES = [
@@ -294,16 +297,49 @@ class Order(models.Model):
         ('takeaway', 'Takeaway'),
         ('delivery', 'Delivery')
     ]
+    PAYMENT_STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('paid', 'Paid'),
+        ('expired', 'Expired'),
+        ('terminated', 'Terminated'),
+        ('termination_requested', 'Termination Requested')
+    ]
+    TRANSCATION_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('success', 'Success'),
+        ('failed', 'Failed')
+    ]
     order_id = models.CharField(max_length=100, default=uuid.uuid4, editable=False, primary_key=True)
+    payment_id = models.CharField(max_length=100, blank=True, null=True)
+    payment_session_id = models.CharField(max_length=100, blank=True, null=True)
+    transaction_id = models.CharField(max_length=100, blank=True, null=True)
+    
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
     table = models.ForeignKey('Table', on_delete=models.CASCADE, blank=True, null=True)
     cooking_instructions = models.TextField(blank=True, null=True)
     order_type = models.CharField(max_length=10, choices=ORDER_TYPE_CHOICES, default='dine-in')
     total = models.DecimalField(max_digits=10, decimal_places=2)
+    
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    payment_status = models.CharField(max_length=30, choices=PAYMENT_STATUS_CHOICES, default='active')
+    transaction_status = models.CharField(max_length=10, choices=TRANSCATION_STATUS_CHOICES, default='pending')
+    
     created_at = models.DateTimeField(auto_now_add=True)
+    prep_start_time = models.DateTimeField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return self.order_id
+        
+    class Meta:
+        ordering = ['-created_at']
+        
+    def get_total_price(self):
+        items = OrderItem.objects.filter(order=self)
+        total = float(sum([item.get_total_price() for item in items]))
+        return total
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')

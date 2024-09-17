@@ -30,9 +30,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ('admin', 'Admin'),
         ('outlet_manager', 'Outlet Manager')
     ]
-
+    id = models.AutoField(primary_key=True)
     email = models.EmailField(unique=True, null=True, blank=True)
-    name = models.CharField(max_length=50, null=True, blank=True)
+    name = models.CharField(max_length=100, null=True, blank=True)
     phone_number = models.CharField(max_length=15, unique=True, null=True, blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     is_active = models.BooleanField(default=True)
@@ -47,6 +47,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email if self.email else self.phone_number
+        
+    def get_full_name(self):
+        return self.name
+    
+    def get_user_id(self):
+        return f"{self.id}{self.name}{self.role}"
 
 class OTP(models.Model):
     phone_number = models.CharField(max_length=15)
