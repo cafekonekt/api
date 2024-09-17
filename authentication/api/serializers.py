@@ -42,15 +42,16 @@ class SendOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=15)
 
     def validate_phone_number(self, value):
-            if len(value) <= 10:
-                raise serializers.ValidationError(_('Invalid phone number.'))
-            try:
-                if not CustomUser.objects.filter(phone_number=value, role='customer').exists():
-                    # If the phone number is not associated with any customer account create a new account
-                    CustomUser.objects.create(phone_number=value, role='customer')
-            except:
-                raise serializers.ValidationError(_('Phone number already exists.'))
-            return value
+        print(value)
+        if len(value) != 13:
+            raise serializers.ValidationError(_('Invalid phone number.'))
+        try:
+            if not CustomUser.objects.filter(phone_number=value, role='customer').exists():
+                # If the phone number is not associated with any customer account create a new account
+                CustomUser.objects.create(phone_number=value, role='customer')
+        except:
+            raise serializers.ValidationError(_('Phone number already exists.'))
+        return value
         
     def send_otp(self):
         phone_number = self.validated_data['phone_number']

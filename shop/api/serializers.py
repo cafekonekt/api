@@ -111,7 +111,7 @@ class CartItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CartItem
-        fields = ['id', 'food_item', 'variant', 'quantity', 'addons', 'totalPrice']
+        fields = ['id', 'item_id', 'food_item', 'variant', 'quantity', 'addons', 'totalPrice']
     
     def get_totalPrice(self, obj):
         """Return the total price of the cart item."""
@@ -217,7 +217,8 @@ class OrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ['order_id', 'user', 'outlet', 'items', 'table', 'cooking_instructions', 'order_type', 'total', 'status', 'created_at', 'updated_at']
+        fields = ['order_id', 'payment_session_id', 'user', 'outlet', 'items', 'table', 'cooking_instructions', 'order_type', 'total', 'status', 'created_at', 'updated_at']
+        depth = 2
 
     def get_total(self, obj):
         return float(obj.total)

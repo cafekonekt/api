@@ -34,6 +34,8 @@ ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS').split(',')
 
 FAST2SMS_API_KEY=os.getenv('FAST2SMS_API_KEY')
 
+CASHFREE_CLIENT_ID=os.getenv('CASHFREE_CLIENT_ID')
+CASHFREE_SECRET_KEY=os.getenv('CASHFREE_SECRET_KEY')
 
 # Application definition
 
