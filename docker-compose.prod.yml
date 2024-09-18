@@ -3,7 +3,6 @@ services:
     build: 
       context: ./
     container_name: django-web
-    command: daphne -b 0.0.0.0 -p 8000 project.asgi:application
     volumes:
       - static:/usr/src/app/static
       - media:/usr/src/app/media
