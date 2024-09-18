@@ -1,13 +1,12 @@
-version: '3'
-
 services:
   web:
-    build: ./
+    build: 
+      context: ./
     container_name: django-web
     command: daphne -b 0.0.0.0 -p 8000 project.asgi:application
     volumes:
-      - static:/app/static
-      - media:/app/media
+      - static:/usr/src/app/static
+      - media:/usr/src/app/media
       - ./:/usr/src/app/
     ports:
       - 8000:8000
