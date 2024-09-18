@@ -521,7 +521,6 @@ class CashfreeWebhookView(APIView):
         cashfree.PGVerifyWebhookSignature(signature, request.body, timestamp)
 
         # Process payment data
-        
         order_id = body['data']['order']['order_id']
         transaction_status = body['data']['payment']['payment_status']
 
