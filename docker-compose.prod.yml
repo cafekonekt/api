@@ -6,6 +6,8 @@ services:
     container_name: django-web
     command: daphne -b 0.0.0.0 -p 8000 project.asgi:application
     volumes:
+      - static:/app/static
+      - media:/app/media
       - ./:/usr/src/app/
     ports:
       - 8000:8000
@@ -38,6 +40,7 @@ services:
     container_name: nginx
     volumes:
       - static:/static
+      - media:/media
     ports:
       - 80:80
     depends_on:
@@ -45,3 +48,5 @@ services:
 
 volumes:
   pgdata:
+  static:
+  media:
