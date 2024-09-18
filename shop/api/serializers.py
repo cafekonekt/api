@@ -243,7 +243,7 @@ class TableSerializer(serializers.ModelSerializer):
       
     class Meta:
         model = Table
-        fields = ['id', 'name', 'outlet', 'slug', 'area', 'capacity', 'url']
+        fields = ['table_id', 'name', 'outlet', 'slug', 'area', 'capacity', 'url']
 
     def get_area(self, obj):
         """Return the area name of the table."""
