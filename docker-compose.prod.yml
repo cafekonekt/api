@@ -1,13 +1,11 @@
-version: '3'
-
 services:
   web:
     build: ./
     container_name: django-web
-    command: daphne -b 0.0.0.0 -p 8000 project.asgi:application
+    entrypoint: ./entrypoint.sh
     volumes:
-      - static:/app/static
-      - media:/app/media
+      - static:/usr/src/app/static
+      - media:/usr/src/app/media
       - ./:/usr/src/app/
     ports:
       - 8000:8000
