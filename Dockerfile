@@ -1,8 +1,5 @@
 FROM python:3.11.4-slim-buster
 
-# set work directory
-WORKDIR /usr/src/app
-
 # set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
@@ -15,10 +12,14 @@ RUN pip install --upgrade pip
 COPY ./requirements.txt .
 RUN pip install -r requirements.txt
 
-# copy project
+# Set work directory
+WORKDIR /usr/src/app
+
+# Copy the rest of the project into the container
 COPY . .
 
-RUN chmod +x /usr/src/app/entrypoint.sh
+# Ensure entrypoint.sh is executable
+RUN ["chmod", "+x", "./entrypoint.sh"]
 
-# run entrypoint.sh
-ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
+# Run entrypoint.sh
+ENTRYPOINT ["./entrypoint.sh"]
