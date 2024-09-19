@@ -17,6 +17,7 @@ class CreateShortURL(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class RedirectShortURL(APIView):
+    permission_classes = []
     def get(self, request, short_code, *args, **kwargs):
         short_url = get_object_or_404(ShortenedURL, short_code=short_code)
         return HttpResponseRedirect(short_url.original_url)

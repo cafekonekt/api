@@ -195,9 +195,10 @@ class AreaAPIView(APIView):
     """
     API endpoint that returns a list of tables in an outlet.
     """
-    permission_classes = []
+    permission_classes = [IsAuthenticated]
     def get(self, request, format=None):
-        areas = TableArea.objects.all()
+        user = request.user
+        areas = TableArea.objects.filter(outlet_manager=user)
         serializer = AreaSerializer(areas, many=True)
         return Response(serializer.data)
 
