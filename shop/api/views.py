@@ -359,7 +359,7 @@ class CheckoutAPIView(APIView):
 
         table = None
         if table_id:
-            table = get_object_or_404(Table, id=table_id)
+            table = get_object_or_404(Table, table_id=table_id)
 
         cooking_instructions = request.data.get('cooking_instructions', None)
 
@@ -409,26 +409,26 @@ class CheckoutAPIView(APIView):
         )
 
         order_meta = OrderMeta()
-        order_meta.return_url = f"http://localhost:3000/kholis-menu/order/{order.order_id}"
+        order_meta.return_url = f"https://app.tacoza.co/{menu.menu_slug}/order/{order.order_id}"
         order_meta.notify_url = f"https://mhj7zw36-8000.inc1.devtunnels.ms/api/shop/cashfree/webhook/"
         order_meta.payment_methods = "cc,dc,upi"
         create_order_request.order_meta = order_meta
 
-        try:
-            api_response = Cashfree().PGCreateOrder(x_api_version, create_order_request, None, None)
-            print(api_response, 'response')
-            print(api_response.data, 'data')
-            order.payment_id = api_response.data.cf_order_id
-            order.payment_session_id = api_response.data.payment_session_id
-            order.save()
-            # Return the payment session id to the client to initiate payment
-            return Response({
-                "order_id": api_response.data.order_id,
-                "payment_session_id": api_response.data.payment_session_id
-            }, status=status.HTTP_201_CREATED)
+        # try:
+        api_response = Cashfree().PGCreateOrder(x_api_version, create_order_request, None, None)
+        print(api_response, 'response')
+        print(api_response.data, 'data')
+        order.payment_id = api_response.data.cf_order_id
+        order.payment_session_id = api_response.data.payment_session_id
+        order.save()
+        # Return the payment session id to the client to initiate payment
+        return Response({
+            "order_id": api_response.data.order_id,
+            "payment_session_id": api_response.data.payment_session_id
+        }, status=status.HTTP_201_CREATED)
 
-        except Exception as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        # except Exception as e:
+        #     return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @method_decorator(csrf_exempt, name='dispatch')

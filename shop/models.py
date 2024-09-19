@@ -1,5 +1,6 @@
 from django.db import models
 from authentication.models import CustomUser
+from shortener.models import ShortenedURL
 import uuid
 import re
 
@@ -185,6 +186,7 @@ class FoodItem(models.Model):
     food_subcategory = models.ForeignKey('SubCategory', on_delete=models.CASCADE, related_name='food_items', blank=True, null=True)
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    image = models.ImageField(upload_to='food_items/', blank=True, null=True)
     image_url = models.URLField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -208,6 +210,10 @@ class FoodItem(models.Model):
         menu_slug = self.menu.menu_slug
         name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
         self.slug = f"{menu_slug}-{name}"
+        
+        if self.image and not self.image_url:
+            self.image_url = self.image.url
+        
         super(FoodItem, self).save(*args, **kwargs)
 
 class FoodTag(models.Model):
@@ -371,20 +377,22 @@ class Table(models.Model):
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
     capacity = models.PositiveIntegerField()
     area = models.ForeignKey('TableArea', on_delete=models.CASCADE, related_name='tables')
-    slug = models.SlugField(max_length=100, unique=True, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    url = models.ForeignKey(ShortenedURL, on_delete=models.CASCADE, blank=True, null=True)
 
     def __str__(self):
         return f"{self.name} - {self.outlet.name}"
     
-    def save(self, *args, **kwargs):
-        outlet_name = re.sub(r'[^a-zA-Z0-9]', '', self.outlet.name.lower().replace(' ', '-'))
-        name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
-        area = re.sub(r'[^a-zA-Z0-9]', '', self.area.name.lower().replace(' ', '-')) if self.area else ''
-        self.slug = f"{outlet_name}-{area}-{name}"
-        super(Table, self).save(*args, **kwargs)
-    
+    def get_url(self):
+        if self.url:
+            return f"https://api.tacoza.co/{self.url.short_code}"
+        menu = Menu.objects.get(outlet=self.outlet)
+        short_url = ShortenedURL.objects.create(original_url=f"https://app.tacoza.co/{menu.menu_slug}/{self.table_id}")
+        self.url = short_url
+        self.save()
+        return f"https://api.tacoza.co/{short_url.short_code}"
+        
     class Meta:
         ordering = ['name']
 
