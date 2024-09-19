@@ -8,6 +8,7 @@ from shop.models import (
     Addon, 
     AddonCategory,
     Outlet, 
+    OutletImage,
     ItemVariant,
     CartItem,
     Order,
@@ -15,6 +16,7 @@ from shop.models import (
     Table,
     TableArea,
     Menu)
+from django.conf import settings
 
 class FoodTagSerializer(serializers.ModelSerializer):
     class Meta:
@@ -167,17 +169,23 @@ class OutletSerializer(serializers.ModelSerializer):
     services = serializers.ListField(
         child=serializers.ChoiceField(choices=[choice[0] for choice in SERVICE_CHOICES])
     )
+    gallery = serializers.SerializerMethodField()
 
     class Meta:
         model = Outlet
-        fields = ['id', 'name', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'shop', 'services', 'slug']
+        fields = ['id', 'name', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'slug']
         depth = 2
 
     def get_logo(self, obj):
         """Return the image URL if it exists, else None."""
         if obj.logo:
-            return obj.logo
+            return f"https://api.tacoza.co{obj.logo.url}"
         return None
+        
+    def get_gallery(self, obj):
+        """Return the image URLs of the gallery."""
+        images = OutletImage.objects.filter(outlet=obj)
+        return [f"https://api.tacoza.co{image.image.url}" for image in images]
 
     def to_representation(self, instance):
         """Convert the comma-separated string back into a list for representation."""
@@ -243,16 +251,15 @@ class TableSerializer(serializers.ModelSerializer):
       
     class Meta:
         model = Table
-        fields = ['table_id', 'name', 'outlet', 'slug', 'area', 'capacity', 'url']
+        fields = ['table_id', 'name', 'outlet', 'area', 'capacity', 'url']
 
     def get_area(self, obj):
         """Return the area name of the table."""
         return obj.area.name if obj.area else None
     
     def get_url(self, obj):
-        outlet = obj.outlet
-        menu_slug = Menu.objects.filter(outlet=outlet).first().menu_slug
-        return f"/{menu_slug}/{obj.id}/"
+        """Return the URL of the table."""
+        return obj.get_url()
     
     def get_outlet(self, obj):
         """Return the outlet name of the table."""

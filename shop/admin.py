@@ -2,6 +2,7 @@ from django.contrib import admin
 from shop.models import (
     Shop, 
     Outlet, 
+    OutletImage,
     Menu, 
     Variant, 
     FoodItem, 
@@ -27,6 +28,7 @@ class OrderAdmin(admin.ModelAdmin):
 
 admin.site.register(Shop)
 admin.site.register(Outlet)
+admin.site.register(OutletImage)
 admin.site.register(Menu)
 admin.site.register(Variant, VariantAdmin)
 admin.site.register(FoodItem)
