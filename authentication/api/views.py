@@ -93,6 +93,7 @@ class VerifyOTPView(APIView):
         }, status=status.HTTP_200_OK)
         return response
 
+
 class UpdateUserView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request, *args, **kwargs):
@@ -103,4 +104,3 @@ class UpdateUserView(APIView):
         user.phone_number = user_data.get('phone_number', user.phone_number)
         user.save()
         return Response({"detail": "User updated successfully."}, status=status.HTTP_200_OK)
-
