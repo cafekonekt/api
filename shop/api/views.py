@@ -198,7 +198,7 @@ class AreaAPIView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, format=None):
         user = request.user
-        areas = TableArea.objects.filter(outlet_manager=user)
+        areas = TableArea.objects.filter(outlet__outlet_manager=user)
         serializer = AreaSerializer(areas, many=True)
         return Response(serializer.data)
 
