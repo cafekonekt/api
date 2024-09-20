@@ -1,13 +1,13 @@
 from rest_framework import serializers
 from rest_framework import viewsets
 from shop.models import (
-    FoodCategory, 
-    SubCategory, 
-    FoodItem , 
+    FoodCategory,
+    SubCategory,
+    FoodItem ,
     FoodTag,
-    Addon, 
+    Addon,
     AddonCategory,
-    Outlet, 
+    Outlet,
     OutletImage,
     ItemVariant,
     CartItem,
@@ -16,6 +16,7 @@ from shop.models import (
     Table,
     TableArea,
     Menu)
+from authentication.api.serializers import UserSerializer
 from django.conf import settings
 
 class FoodTagSerializer(serializers.ModelSerializer):
@@ -33,18 +34,18 @@ class AddonCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = AddonCategory
         fields = ['id', 'name', 'addons']
-    
+
     def get_addons(self, obj):
         """Return the addons of the category."""
         addons = Addon.objects.filter(category=obj)
         return AddonSerializer(obj.addons.filter(category=obj), many=True).data
-    
+
 class ItemVariantSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     class Meta:
         model = ItemVariant
         fields = ['id', 'name', 'price']
-    
+
     def get_name(self, obj):
         """Return the variant name."""
         return obj.variant.name
@@ -61,18 +62,18 @@ class FoodItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = FoodItem
         fields = [
-            'id', 
-            'name', 
-            'food_type', 
-            'food_category', 
-            'food_subcategory', 
-            'description', 
-            'price', 
-            'image_url', 
-            'addons', 
-            'tags', 
-            'prepration_time', 
-            'status_color', 
+            'id',
+            'name',
+            'food_type',
+            'food_category',
+            'food_subcategory',
+            'description',
+            'price',
+            'image_url',
+            'addons',
+            'tags',
+            'prepration_time',
+            'status_color',
             'rating',
             'variants']
 
@@ -83,7 +84,7 @@ class FoodItemSerializer(serializers.ModelSerializer):
     def get_food_subcategory(self, obj):
         """Return the subcategory name if it exists, else None."""
         return obj.food_subcategory.name if obj.food_subcategory else None
-    
+
     def get_variants(self, obj):
         """Return the variants of the food item."""
         variants = ItemVariant.objects.filter(food_item=obj)
@@ -99,8 +100,8 @@ class FoodItemSerializer(serializers.ModelSerializer):
             return 'text-yellow-500'
         elif obj.food_type == 'nonveg':
             return 'text-red-500'
-        return 'text-green-500' 
-    
+        return 'text-green-500'
+
     def get_rating(self, obj):
         """Return the average rating of the food item."""
         return 4.5
@@ -114,11 +115,11 @@ class CartItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = CartItem
         fields = ['id', 'item_id', 'food_item', 'variant', 'quantity', 'addons', 'totalPrice']
-    
+
     def get_totalPrice(self, obj):
         """Return the total price of the cart item."""
         return obj.get_total_price()
-    
+
     def get_variant(self, obj):
         """Return the variant name."""
         item_variant = ItemVariant.objects.filter(food_item=obj.food_item, variant=obj.variant).first()
@@ -170,18 +171,24 @@ class OutletSerializer(serializers.ModelSerializer):
         child=serializers.ChoiceField(choices=[choice[0] for choice in SERVICE_CHOICES])
     )
     gallery = serializers.SerializerMethodField()
+    menu_slug = serializers.SerializerMethodField()
 
     class Meta:
         model = Outlet
-        fields = ['id', 'name', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'slug']
+        fields = ['id', 'name', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'slug']
         depth = 2
+
+    def get_menu_slug(self, obj):
+        """Return the menu slug."""
+        menu = Menu.objects.filter(outlet=obj).first()
+        return menu.menu_slug if menu else None
 
     def get_logo(self, obj):
         """Return the image URL if it exists, else None."""
         if obj.logo:
             return f"https://api.tacoza.co{obj.logo.url}"
         return None
-        
+
     def get_gallery(self, obj):
         """Return the image URLs of the gallery."""
         images = OutletImage.objects.filter(outlet=obj)
@@ -212,33 +219,80 @@ class OrderItemSerializer(serializers.ModelSerializer):
     def get_variant(self, obj):
         """Return the variant name."""
         return obj.variant.name if obj.variant else None
-    
+
     def get_totalPrice(self, obj):
         """Return the total price of the order item."""
         return obj.get_total_price()
 
+class OrderTimelineSerializer(serializers.Serializer):
+    stage = serializers.CharField()
+    status = serializers.CharField()
+    content = serializers.CharField()
+
+
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True)
-    user = serializers.SerializerMethodField()
+    user = UserSerializer()
     table = serializers.SerializerMethodField()
     total = serializers.SerializerMethodField()
+    outlet = OutletSerializer()
+    order_timeline = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
-        fields = ['order_id', 'payment_session_id', 'user', 'outlet', 'items', 'table', 'cooking_instructions', 'order_type', 'total', 'status', 'created_at', 'updated_at']
-        depth = 2
+        fields = [
+            'order_id',
+            'payment_session_id',
+            'order_timeline',
+            'user',
+            'outlet',
+            'items',
+            'table',
+            'cooking_instructions',
+            'order_type',
+            'total',
+            'status',
+            'payment_status',
+            'created_at',
+            'updated_at']
 
     def get_total(self, obj):
         return float(obj.total)
 
+    def get_order_timeline(self, obj):
+        """Return the order timeline."""
+        timeline = [
+            {
+                "stage": "Order Placed",
+                "status": "done",
+                "content": obj.created_at,
+            },
+            {
+                "stage": "Payment",
+                "status": "pending",
+                "content": obj.payment_status,
+            },
+            {
+                "stage": "Preparing Food",
+                "status": "pending" if obj.payment_status == "failed" else "inactive",
+                "content": "",
+            },
+            {
+                "stage": "Served",
+                "status": "pending" if obj.payment_status == "failed" else "inactive",
+                "content": "",
+            },
+        ]
+        return OrderTimelineSerializer(timeline, many=True).data
     def get_user(self, obj):
         """Return the user name."""
         return obj.user.name
-    
+
     def get_table(self, obj):
         """Return the table name."""
         return obj.table.name if obj.table else None
-    
+
+
 class CheckoutSerializer(serializers.Serializer):
     class Meta:
         model = Order
@@ -248,7 +302,7 @@ class TableSerializer(serializers.ModelSerializer):
     area = serializers.SerializerMethodField()
     url = serializers.SerializerMethodField()
     outlet = serializers.SerializerMethodField()
-      
+
     class Meta:
         model = Table
         fields = ['table_id', 'name', 'outlet', 'area', 'capacity', 'url']
@@ -256,11 +310,11 @@ class TableSerializer(serializers.ModelSerializer):
     def get_area(self, obj):
         """Return the area name of the table."""
         return obj.area.name if obj.area else None
-    
+
     def get_url(self, obj):
         """Return the URL of the table."""
         return obj.get_url()
-    
+
     def get_outlet(self, obj):
         """Return the outlet name of the table."""
         return obj.outlet.name if obj.outlet else None

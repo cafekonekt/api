@@ -186,7 +186,7 @@ class GetTableDetail(APIView):
     """
     permission_classes = []
     def get(self, request, table_slug, format=None):
-        table = get_object_or_404(Table, id =table_slug)
+        table = get_object_or_404(Table, table_id=table_slug)
         serializer = TableSerializer(table)
         return Response(serializer.data)
 
@@ -411,7 +411,7 @@ class CheckoutAPIView(APIView):
 
         order_meta = OrderMeta()
         order_meta.return_url = f"https://app.tacoza.co/{menu.menu_slug}/order/{order.order_id}"
-        order_meta.notify_url = f"https://mhj7zw36-8000.inc1.devtunnels.ms/api/shop/cashfree/webhook/"
+        order_meta.notify_url = f"https://mhj7zw36-8000.inc1.devtunnels.ms//api/shop/cashfree/webhook/"
         order_meta.payment_methods = "cc,dc,upi"
         create_order_request.order_meta = order_meta
 
@@ -442,13 +442,15 @@ class CashfreeWebhookView(APIView):
         # Get raw request data
         body = request.data
         
+        decoded_body = request.body.decode('utf-8')
+
         timestamp = request.headers.get('x-webhook-timestamp')
         signature = request.headers.get('x-webhook-signature')
 
         # try:
         # Verify the signature using Cashfree SDK
         cashfree = Cashfree()
-        cashfree.PGVerifyWebhookSignature(signature, request.body, timestamp)
+        cashfree.PGVerifyWebhookSignature(signature, decoded_body, timestamp)
 
         # Process payment data
         order_id = body['data']['order']['order_id']
@@ -458,7 +460,7 @@ class CashfreeWebhookView(APIView):
         if transaction_status == "SUCCESS":
             # Update order status to 'paid'
             order = Order.objects.get(order_id=order_id)
-            order.payment_status = 'paid'
+            order.payment_status = 'success'
             order.save()
             
             menu = Menu.objects.get(outlet=order.outlet)
@@ -472,6 +474,14 @@ class CashfreeWebhookView(APIView):
                     'message': OrderSerializer(order).data
                 }
             )
+        elif transaction_status == "PENDING":
+            order = Order.objects.get(order_id=order_id)
+            order.payment_status = 'pending'
+            order.save()
+        else:
+            order = Order.objects.get(order_id=order_id)
+            order.payment_status = 'failed'
+            order.save()
 
         return JsonResponse({"status": "success"})
 
@@ -480,8 +490,20 @@ class CashfreeWebhookView(APIView):
         #     return JsonResponse({"error": str(e)}, status=400)
 
 
+class PaymentStatusAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, order_id):
+        try:
+            api_response = Cashfree().PGOrderFetchPayments(x_api_version, order_id, None)
+            print(api_response.data)
+            return Response(api_response.data)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 class OrderAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
     def get(self, request, menu_slug=None, order_id=None):
         user = request.user
         if user.role == 'owner':

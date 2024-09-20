@@ -110,3 +110,14 @@ class VerifyOTPSerializer(serializers.Serializer):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
+
+
+class UserSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'name', 'email', 'phone_number', 'role']
+    
+    def get_name(self, obj):
+        "Return the name of the user"
+        return obj.get_full_name()
