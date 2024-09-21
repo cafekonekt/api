@@ -315,10 +315,10 @@ class Order(models.Model):
         ('success', 'Success'),
         ('failed', 'Failed')
     ]
-    order_id = models.CharField(max_length=100, default=uuid.uuid4, editable=False, primary_key=True)
-    payment_id = models.CharField(max_length=100, blank=True, null=True)
-    payment_session_id = models.CharField(max_length=100, blank=True, null=True)
-    transaction_id = models.CharField(max_length=100, blank=True, null=True)
+    order_id = models.CharField(max_length=500, default=uuid.uuid4, editable=False, primary_key=True)
+    payment_id = models.CharField(max_length=500, blank=True, null=True)
+    payment_session_id = models.CharField(max_length=500, blank=True, null=True)
+    transaction_id = models.CharField(max_length=500, blank=True, null=True)
     
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     

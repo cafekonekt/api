@@ -375,6 +375,7 @@ class CheckoutAPIView(APIView):
             "table": table,
             "cooking_instructions": cooking_instructions
         }
+        print(order_data, 'order_data')
 
         # Create the order in your database
         order_serializer = CheckoutSerializer(data=order_data)
