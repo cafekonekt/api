@@ -70,6 +70,7 @@ class FoodItemSerializer(serializers.ModelSerializer):
             'description',
             'price',
             'image_url',
+            'in_stock',
             'addons',
             'tags',
             'prepration_time',
