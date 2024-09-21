@@ -191,7 +191,7 @@ class FoodItem(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     featured = models.BooleanField(default=False)
-
+    in_stock = models.BooleanField(default=True)
     addons = models.ManyToManyField(Addon, related_name='food_items', blank=True)
     variant = models.ForeignKey(VariantCategory, on_delete=models.CASCADE, related_name='food_items', blank=True, null=True)
     tags = models.ManyToManyField('FoodTag', related_name='food_items', blank=True)
@@ -212,7 +212,7 @@ class FoodItem(models.Model):
         self.slug = f"{menu_slug}-{name}"
         
         if self.image and not self.image_url:
-            self.image_url = self.image.url
+            self.image_url = f"https://api.tacoza.co{self.image.url}"
         
         super(FoodItem, self).save(*args, **kwargs)
 
