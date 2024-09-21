@@ -410,15 +410,14 @@ class CheckoutAPIView(APIView):
         )
 
         order_meta = OrderMeta()
-        order_meta.return_url = f"https://app.tacoza.co/{menu.menu_slug}/order/{order.order_id}"
-        order_meta.notify_url = f"https://mhj7zw36-8000.inc1.devtunnels.ms//api/shop/cashfree/webhook/"
+        order_meta.return_url = f"https://app.tacoza.co/order/{order.order_id}"
+        order_meta.notify_url = f"https://api.tacoza.co/api/shop/cashfree/webhook/"
         order_meta.payment_methods = "cc,dc,upi"
         create_order_request.order_meta = order_meta
 
         # try:
         api_response = Cashfree().PGCreateOrder(x_api_version, create_order_request, None, None)
         print(api_response, 'response')
-        print(api_response.data, 'data')
         order.payment_id = api_response.data.cf_order_id
         order.payment_session_id = api_response.data.payment_session_id
         order.save()

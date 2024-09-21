@@ -21,5 +21,5 @@ COPY . .
 # Ensure entrypoint.sh is executable
 RUN ["chmod", "+x", "./entrypoint.sh"]
 
-# # Run entrypoint.sh
-# ENTRYPOINT ["./entrypoint.sh"]
+# Run entrypoint.sh
+ENTRYPOINT ["./entrypoint.sh"]
