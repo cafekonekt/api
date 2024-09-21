@@ -7,6 +7,7 @@ from shop.api.views import (
     ClientMenuAPIView, 
     CartView, 
     CheckoutAPIView, 
+    PaymentStatusAPIView,
     CashfreeWebhookView,
     GetTableAPIView,
     GetTableDetail,
@@ -39,11 +40,14 @@ urlpatterns = [
     path('cart/<slug:menu_slug>/<slug:item_id>/', CartView.as_view(), name='cart_item'),
 
     path('checkout/<slug:menu_slug>/', CheckoutAPIView.as_view(), name='checkout'),
+    path('payment/<slug:order_id>/', PaymentStatusAPIView.as_view(), name='payment-status'),
     path('cashfree/webhook/', CashfreeWebhookView.as_view(), name='cashfree-webhook'),
+    
     path('orders/', OrderAPIView.as_view(), name='orders'),
     path('live-orders/', LiveOrders.as_view(), name='live-orders'),
     path('live-orders/<slug:order_id>/', LiveOrders.as_view(), name='live-orders-detail'),
     path('order/<slug:order_id>/', OrderDetailAPIView.as_view(), name='orders'),
+    
     path('orders/<slug:menu_slug>/', OrderAPIView.as_view(), name='orders'),
     path('subscription/', SocketSeller.as_view(), name='subscription'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
