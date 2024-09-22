@@ -19,11 +19,6 @@ class Shop(models.Model):
         ordering = ['name']
 
 class Outlet(models.Model):
-    SERVICE_CHOICES = [
-        ('dine_in', 'Dine-In'),
-        ('takeaway', 'Takeaway'),
-        ('delivery', 'Delivery')
-    ]
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
@@ -35,6 +30,7 @@ class Outlet(models.Model):
     minimum_order_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     average_preparation_time = models.PositiveIntegerField(default=30)
     services = models.CharField(max_length=100, default='dine_in')
+    type = models.CharField(max_length=100, default='veg')
     
     email = models.EmailField(null=True, blank=True)
     phone = models.CharField(max_length=15)
