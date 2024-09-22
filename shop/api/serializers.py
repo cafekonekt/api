@@ -149,17 +149,6 @@ class FoodCategorySerializer(serializers.ModelSerializer):
         """Return food items directly under this category (those without a subcategory)."""
         return FoodItemSerializer(obj.food_items.filter(food_subcategory__isnull=True), many=True).data
 
-class ClientFoodCategorySerializer(serializers.ModelSerializer):
-    sub_categories = SubCategorySerializer(many=True, read_only=True)
-    food_items = serializers.SerializerMethodField()
-
-    class Meta:
-        model = FoodCategory
-        fields = ['id', 'name', 'sub_categories', 'food_items']
-
-    def get_food_items(self, obj):
-        """Return food items directly under this category (those without a subcategory)."""
-        return FoodItemSerializer(obj.food_items.filter(food_subcategory__isnull=True), many=True).data
 
 class OutletSerializer(serializers.ModelSerializer):
     SERVICE_CHOICES = [

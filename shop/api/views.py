@@ -17,7 +17,6 @@ from shop.models import (
 from shop.api.serializers import (
     FoodCategorySerializer,
     OutletSerializer,
-    ClientFoodCategorySerializer,
     CartItemSerializer,
     FoodItemSerializer,
     OrderSerializer,
@@ -54,47 +53,14 @@ Cashfree.XClientSecret = settings.CASHFREE_SECRET_KEY
 Cashfree.XEnvironment = Cashfree.SANDBOX
 x_api_version = "2023-08-01"
 
-class MenuAPIView(APIView):
-    """
-    API endpoint that returns a list of categories with nested subcategories and menu items.
-    """
-    permission_classes = [IsAuthenticated]
-    def get(self, request, format=None):
-        user = request.user
-        outlet = Outlet.objects.filter(outlet_manager=user).first()
-        menu = Menu.objects.filter(outlet=outlet).first()
-        categories = FoodCategory.objects.filter(menu=menu)
 
-        serializer = FoodCategorySerializer(categories, many=True)
-        return Response(serializer.data)
-
-
-class AddonAPIView(APIView):
-    """
-    API endpoint that returns a list of addons.
-    """
-    permission_classes = [IsAuthenticated]
-    def get(self, request, format=None):
-        user = request.user
-        outlet = Outlet.objects.filter(outlet_manager=user).first()
-        menu = Menu.objects.filter(outlet=outlet).first()
-        categories = AddonCategory.objects.filter(menu=menu)
-
-        serializer = AddonCategorySerializer(categories, many=True)
-        return Response(serializer.data)
-
-
-class ClientMenuAPIView(APIView):
-    """
-    API endpoint that returns a list of categories with nested subcategories and menu items for a client.
-    """
+class FoodCategoryListCreateView(APIView):
     permission_classes = []
-    def get(self, request, menu_slug, format=None):
-        menu = Menu.objects.filter(menu_slug=menu_slug).first()
-        categories = FoodCategory.objects.filter(menu=menu)
 
-        # Serialize the existing categories
-        serializer = ClientFoodCategorySerializer(categories, many=True)
+    def get(self, request, menu_slug):
+        menu = get_object_or_404(Menu, menu_slug=menu_slug)
+        categories = FoodCategory.objects.filter(menu=menu)
+        serializer = FoodCategorySerializer(categories, many=True)
         category_data = serializer.data
 
         # Add the recommended category
@@ -119,146 +85,75 @@ class ClientMenuAPIView(APIView):
         return None
 
 
-class GetOutletAPIView(APIView):
-    """
-    API endpoint that returns a list of outlets.
-    """
-    permission_classes = []
-    def get(self, request, menu_slug, format=None):
-        menu = Menu.objects.filter(menu_slug=menu_slug).first()
-        if menu:
-            outlet = menu.outlet
-            serializer = OutletSerializer(outlet)
+class FoodItemListCreateView(APIView):
+    def get(self, request):
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        menu = Menu.objects.filter(outlet=outlet).first()
+        categories = FoodCategory.objects.filter(menu=menu)
+        serializer = FoodCategorySerializer(categories, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = FoodItemSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FoodItemDetailView(APIView):
+    def get(self, request, id):
+        food_item = get_object_or_404(FoodItem, id=id)
+        serializer = FoodItemSerializer(food_item)
+        return Response(serializer.data)
+    
+    def put(self, request, id):
+        food_item = get_object_or_404(FoodItem, id=id)
+        serializer = FoodItemSerializer(food_item, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
             return Response(serializer.data)
-        return Response({"detail": "Menu not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, id):
+        food_item = get_object_or_404(FoodItem, id=id)
+        food_item.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class OutletAPIView(APIView):
-    """
-    API endpoint that returns a list of outlets.
-    """
-    permission_classes = [IsAuthenticated]
+class AddonCategoryListCreateView(APIView):
+    def get(self, request):
+        addon_categories = AddonCategory.objects.all()
+        serializer = AddonCategorySerializer(addon_categories, many=True)
+        return Response(serializer.data)
+    
+    def post(self, request):
+        serializer = AddonCategorySerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def get(self, request, format=None):
-        user = request.user
-        outlets = Outlet.objects.filter(outlet_manager=user).first()
-        serializer = OutletSerializer(outlets)
+
+class AddonCategoryDetailView(APIView):
+    def get(self, request, id):
+        addon_category = get_object_or_404(AddonCategory, id=id)
+        serializer = AddonCategorySerializer(addon_category)
         return Response(serializer.data)
 
-    def put(self, request, outlet_id, format=None):
-        user = request.user
-        outlet = Outlet.objects.filter(id=outlet_id, outlet_manager=user).first()
-        data = request.data
-        outlet.name = data.get('name', outlet.name)
-        outlet.description = data.get('description', outlet.description)
-        outlet.address = data.get('address', outlet.address)
-        outlet.location = data.get('location', outlet.location)
+    def put(self, request, id):
+        addon_category = get_object_or_404(AddonCategory, id=id)
+        serializer = AddonCategorySerializer(addon_category, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        if 'logo' in request.FILES:
-            outlet.logo = request.FILES['logo']
-
-        minimum_order_value = data.get('minimum_order_value', outlet.minimum_order_value)
-        average_preparation_time = data.get('average_preparation_time', outlet.average_preparation_time)
-        service = data.get('service', outlet.service)
-
-        outlet.phone = data.get('phone', outlet.phone)
-        outlet.save()
-        serializer = OutletSerializer(outlet)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class GetTableAPIView(APIView):
-    """
-    API endpoint that returns a list of tables in an outlet.
-    """
-    permission_classes = []
-    def get(self, request, menu_slug, format=None):
-        menu = Menu.objects.filter(menu_slug=menu_slug).first()
-        outlet = menu.outlet
-        tables = Table.objects.filter(outlet=outlet)
-        serializer = TableSerializer(tables, many=True)
-        return Response(serializer.data)
-
-
-class GetTableDetail(APIView):
-    """
-    API endpoint that returns a list of tables in an outlet.
-    """
-    permission_classes = []
-    def get(self, request, table_slug, format=None):
-        table = get_object_or_404(Table, table_id=table_slug)
-        serializer = TableSerializer(table)
-        return Response(serializer.data)
-
-
-class AreaAPIView(APIView):
-    """
-    API endpoint that returns a list of tables in an outlet.
-    """
-    permission_classes = [IsAuthenticated]
-    def get(self, request, format=None):
-        user = request.user
-        areas = TableArea.objects.filter(outlet__outlet_manager=user)
-        serializer = AreaSerializer(areas, many=True)
-        return Response(serializer.data)
-
-    def post(self, request, format=None):
-        user = request.user
-        outlet = Outlet.objects.filter(outlet_manager=user).first()
-        data = request.data
-        area = TableArea.objects.create(outlet=outlet, **data)
-        serializer = AreaSerializer(area)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-
-class GetTableSellerAPIView(APIView):
-    """
-    API endpoint that returns a list of tables in an outlet.
-    """
-    permission_classes = [IsAuthenticated]
-    def get(self, request, format=None):
-        user = request.user
-        outlet = Outlet.objects.filter(outlet_manager=user).first()
-        tables = Table.objects.filter(outlet=outlet)
-        serializer = TableSerializer(tables, many=True)
-        return Response(serializer.data)
-
-    def post(self, request, format=None):
-        user = request.user
-        outlet = Outlet.objects.filter(outlet_manager=user).first()
-        data = request.data
-        name = data.get('name')
-        capacity = data.get('capacity')
-        area = data.get('area')
-        area = TableArea.objects.filter(id=area).first()
-        table = Table.objects.create(outlet=outlet, name=name, capacity=capacity, area=area)
-        serializer = TableSerializer(table)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-
-class TableSellerAPIView(APIView):
-    """
-    API endpoint that returns a list of tables in an outlet.
-    """
-    permission_classes = [IsAuthenticated]
-    def put(self, request, table_slug, format=None):
-        user = request.user
-        outlet = Outlet.objects.filter(outlet_manager=user).first()
-        table = Table.objects.filter(id=table_slug, outlet=outlet).first()
-        data = request.data
-        table.name = data.get('name', table.name)
-        table.capacity = data.get('capacity', table.capacity)
-        table.area = TableArea.objects.filter(id=data.get('area', table.area.id)).first()
-        table.save()
-        serializer = TableSerializer(table)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def delete(self, request, table_slug, format=None):
-        user = request.user
-        outlet = Outlet.objects.filter(outlet_manager=user).first()
-        table = Table.objects.filter(id=table_slug, outlet=outlet).first()
-        table.delete()
-        return Response({"message": "Table deleted successfully."}, status=status.HTTP_200_OK)
+    def delete(self, request, id):
+        addon_category = get_object_or_404(AddonCategory, id=id)
+        addon_category.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class CartView(APIView):
@@ -501,18 +396,15 @@ class PaymentStatusAPIView(APIView):
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-class OrderAPIView(APIView):
+
+class OrderList(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, menu_slug=None, order_id=None):
         user = request.user
         if user.role == 'owner':
-            print("Owner")
             outlet = Outlet.objects.filter(outlet_manager=user).first()
             orders = Order.objects.filter(outlet=outlet).order_by('-created_at')
-        elif menu_slug:
-            menu = get_object_or_404(Menu, menu_slug=menu_slug)
-            orders = Order.objects.filter(outlet=menu.outlet, user=user).order_by('-created_at')
         else:
             orders = Order.objects.filter(user=user).order_by('-created_at')
         serializer = OrderSerializer(orders, many=True)
@@ -521,6 +413,7 @@ class OrderAPIView(APIView):
 
 class OrderDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
     def get(self, request, order_id):
         user = request.user
         order = get_object_or_404(Order, order_id=order_id)
@@ -580,6 +473,147 @@ class LiveOrders(APIView):
             return Response({"message": "Order is pending."}, status=status.HTTP_200_OK)
 
         return Response({"detail": "Invalid status."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class OutletListView(APIView):
+    permission_classes = []
+    
+    def get(self, request, menu_slug):
+        menu = get_object_or_404(Menu, menu_slug=menu_slug)
+        outlet = menu.outlet
+        serializer = OutletSerializer(outlet)
+        return Response(serializer.data)
+
+
+class OutletListCreateView(APIView):
+    def get(self, request):
+        outlets = Outlet.objects.all()
+        serializer = OutletSerializer(outlets, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = OutletSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class OutletDetailView(APIView):
+    def get(self, request, menu_slug):
+        menu = get_object_or_404(Menu, menu_slug=menu_slug)
+        outlet = menu.outlet
+        serializer = OutletSerializer(outlet)
+        return Response(serializer.data)
+
+    def put(self, request, id):
+        outlet = get_object_or_404(Outlet, id=id)
+        serializer = OutletSerializer(outlet, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, id):
+        outlet = get_object_or_404(Outlet, id=id)
+        outlet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TableListView(APIView):
+    permission_classes = []
+
+    def get(self, request, menu_slug):
+        menu = get_object_or_404(Menu, menu_slug=menu_slug)
+        tables = Table.objects.filter(outlet=menu.outlet)
+        serializer = TableSerializer(tables, many=True)
+        return Response(serializer.data)
+    
+
+class TableListCreateView(APIView):
+    def get(self, request):
+        try:
+            user = request.user
+            tables = Table.objects.filter(outlet__outlet_manager=user)
+            serializer = TableSerializer(tables, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def post(self, request):
+        try:
+            user = request.user
+            data = request.data
+            outlet = Outlet.objects.filter(outlet_manager=user).first()
+            name = data.get('name')
+            capacity = data.get('capacity')
+            area = data.get('area')
+            area = TableArea.objects.filter(id=area).first()
+            table = Table.objects.create(outlet=outlet, name=name, capacity=capacity, area=area)
+            serializer = TableSerializer(table)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TableDetailGetView(APIView):
+    permission_classes = []
+
+    def get(self, request, table_id):
+        table = get_object_or_404(Table, table_id=table_id)
+        serializer = TableSerializer(table)
+        return Response(serializer.data)
+
+
+class TableDetailView(APIView):
+    def put(self, request, table_id):
+        table = get_object_or_404(Table, id=table_id)
+        serializer = TableSerializer(table, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, table_id):
+        table = get_object_or_404(Table, id=table_id)
+        table.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AreaListCreateView(APIView):
+    def get(self, request):
+        areas = TableArea.objects.all()
+        serializer = AreaSerializer(areas, many=True)
+        return Response(serializer.data)
+    
+    def post(self, request):
+        try :
+            outlet = Outlet.objects.filter(outlet_manager=request.user).first()
+            area = TableArea.objects.create(outlet=outlet, **request.data)
+            serializer = AreaSerializer(area)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AreaDetailView(APIView):
+    def get(self, request, id):
+        area = get_object_or_404(TableArea, id=id)
+        serializer = AreaSerializer(area)
+        return Response(serializer.data)
+
+    def put(self, request, id):
+        area = get_object_or_404(TableArea, id=id)
+        serializer = AreaSerializer(area, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, id):
+        area = get_object_or_404(TableArea, id=id)
+        area.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class SocketSeller(APIView):

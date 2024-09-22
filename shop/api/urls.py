@@ -1,41 +1,40 @@
 from django.urls import path
 from shop.api.views import (
-    MenuAPIView, 
-    AddonAPIView,
-    GetOutletAPIView, 
-    OutletAPIView,
-    ClientMenuAPIView, 
-    CartView, 
-    CheckoutAPIView, 
+    FoodCategoryListCreateView,
+    FoodItemListCreateView,
+    FoodItemDetailView,
+    AddonCategoryListCreateView,
+    AddonCategoryDetailView,
+    CartView,
+    CheckoutAPIView,
     PaymentStatusAPIView,
     CashfreeWebhookView,
-    GetTableAPIView,
-    GetTableDetail,
-    GetTableSellerAPIView,
-    TableSellerAPIView,
+    OrderList,
+    LiveOrders, 
     OrderDetailAPIView,
-    OrderAPIView,
-    LiveOrders,
-    AreaAPIView,
+    OutletListView,
+    OutletListCreateView,
+    OutletDetailView,
+    TableListView,
+    TableListCreateView,
+    TableDetailGetView,
+    TableDetailView,
+    AreaListCreateView,
+    AreaDetailView,
     SocketSeller
 )
 from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
-    path('menu/', MenuAPIView.as_view(), name='menu'),
-    path('addons/', AddonAPIView.as_view(), name='addons'),
-    
-    path('client-menu/<slug:menu_slug>', ClientMenuAPIView.as_view(), name='category'),
-    path('outlet/<slug:menu_slug>', GetOutletAPIView.as_view(), name='get-outlet'),
-    path('outlet/', OutletAPIView.as_view(), name='outlet-detail'),
-    path('tables/<slug:menu_slug>', GetTableAPIView.as_view(), name='get-tables'),
-    path('table/<slug:table_slug>', GetTableDetail.as_view(), name='table'),
+    path('menu/<slug:menu_slug>/', FoodCategoryListCreateView.as_view(), name='food-category'),
 
-    path('area/', AreaAPIView.as_view(), name='area'),
-    path('tables/', GetTableSellerAPIView.as_view(), name='table-seller'),
-    path('tables/<slug:table_slug>/', TableSellerAPIView.as_view(), name='table-seller-item'),
-    
+    path('food-items/', FoodItemListCreateView.as_view(), name='food-item'),
+    path('food-items/<int:pk>/', FoodItemDetailView.as_view(), name='food-item-detail'),
+
+    path('addon-categories/', AddonCategoryListCreateView.as_view(), name='addon-category'),
+    path('addon-categories/<int:pk>/', AddonCategoryDetailView.as_view(), name='addon-category-detail'),
+
     path('cart/<slug:menu_slug>/', CartView.as_view(), name='cart'),
     path('cart/<slug:menu_slug>/<slug:item_id>/', CartView.as_view(), name='cart_item'),
 
@@ -43,11 +42,23 @@ urlpatterns = [
     path('payment/<slug:order_id>/', PaymentStatusAPIView.as_view(), name='payment-status'),
     path('cashfree/webhook/', CashfreeWebhookView.as_view(), name='cashfree-webhook'),
     
-    path('orders/', OrderAPIView.as_view(), name='orders'),
+    path('orders/', OrderList.as_view(), name='orders'),
     path('live-orders/', LiveOrders.as_view(), name='live-orders'),
     path('live-orders/<slug:order_id>/', LiveOrders.as_view(), name='live-orders-detail'),
     path('order/<slug:order_id>/', OrderDetailAPIView.as_view(), name='orders'),
-    
-    path('orders/<slug:menu_slug>/', OrderAPIView.as_view(), name='orders'),
+
+
+    path('outlet/<slug:menu_slug>', OutletListView.as_view(), name='outlet'),
+    path('outlet/', OutletListCreateView.as_view(), name='outlet'),
+    path('outlet/<int:pk>/', OutletDetailView.as_view(), name='outlet-detail'),
+
+    path('tables/<slug:menu_slug>/', TableListView.as_view(), name='table'),
+    path('table/<slug:table_id>/', TableDetailGetView.as_view(), name='table-detail'),
+    path('tables/', TableListCreateView.as_view(), name='table'),
+
+    path('area/', AreaListCreateView.as_view(), name='area'),
+    path('area/<int:pk>/', AreaDetailView.as_view(), name='area-detail'),
+
+    path('areas/<slug:area_slug>/', AreaDetailView.as_view(), name='area-detail'),
     path('subscription/', SocketSeller.as_view(), name='subscription'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
