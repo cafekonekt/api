@@ -156,16 +156,24 @@ class OutletSerializer(serializers.ModelSerializer):
         ('takeaway', 'Takeaway'),
         ('delivery', 'Delivery')
     ]
+    TYPE_CHOICES = [
+        ('veg', 'Veg'),
+        ('nonveg', 'Non-Veg'),
+        ('egg', 'Egg')
+    ]
     logo = serializers.SerializerMethodField()
     services = serializers.ListField(
         child=serializers.ChoiceField(choices=[choice[0] for choice in SERVICE_CHOICES])
+    )
+    type = serializers.ListField(
+        child=serializers.ChoiceField(choices=[choice[0] for choice in TYPE_CHOICES])
     )
     gallery = serializers.SerializerMethodField()
     menu_slug = serializers.SerializerMethodField()
 
     class Meta:
         model = Outlet
-        fields = ['id', 'name', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'slug']
+        fields = ['id', 'name', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'type', 'slug']
         depth = 2
 
     def get_menu_slug(self, obj):
@@ -188,7 +196,9 @@ class OutletSerializer(serializers.ModelSerializer):
         """Convert the comma-separated string back into a list for representation."""
         representation = super().to_representation(instance)
         representation['services'] = instance.services.split(',')
+        representation['type'] = instance.type.split(',')
         return representation
+    
 
     def to_internal_value(self, data):
         """Convert the list of services to a comma-separated string before saving."""

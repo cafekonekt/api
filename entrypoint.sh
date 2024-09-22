@@ -9,7 +9,7 @@ python manage.py collectstatic --no-input --clear
 
 
 # Create superuser
-echo "from authentication.models import CustomUser; CustomUser.objects.create_superuser('admin@gmail.com', '1234')" | python manage.py shell
+# echo "from authentication.models import CustomUser; CustomUser.objects.create_superuser('admin@gmail.com', '1234')" | python manage.py shell
 
 # Start server
 daphne -b 0.0.0.0 -p 8000 project.asgi:application
