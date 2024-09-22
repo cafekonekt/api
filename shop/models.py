@@ -1,6 +1,7 @@
 from django.db import models
 from authentication.models import CustomUser
 from shortener.models import ShortenedURL
+from django.conf import settings
 import uuid
 import re
 
@@ -212,7 +213,7 @@ class FoodItem(models.Model):
         self.slug = f"{menu_slug}-{name}"
         
         if self.image and not self.image_url:
-            self.image_url = f"https://api.tacoza.co{self.image.url}"
+            self.image_url = f"https://api.tacoza.co{settings.MEDIA_URL}{self.image.name}"
         
         super(FoodItem, self).save(*args, **kwargs)
 
