@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.utils import timezone
 from datetime import timedelta
 from django.db import models
+import re
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email=None, phone_number=None, password=None, **extra_fields):
@@ -49,10 +50,17 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         return self.email if self.email else self.phone_number
         
     def get_full_name(self):
-        return self.name
+        # remove spaces and make it aplha numeric
+        name = self.name.replace(' ', '')
+        name = re.sub(r'[^a-zA-Z0-9]', '', name)
+        if len(name)<3:
+            name = name + 'user'
+        return name
     
     def get_user_id(self):
-        return f"{self.id}{self.name}{self.role}"
+        name = self.name.replace(' ', '')
+        name = re.sub(r'[^a-zA-Z0-9]', '', name)
+        return f"{self.id}{name}{self.role}"
 
 class OTP(models.Model):
     phone_number = models.CharField(max_length=15)
