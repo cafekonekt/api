@@ -70,7 +70,7 @@ class SendOTPSerializer(serializers.Serializer):
                 'Cache-Control': 'no-cache'
             }
         )
-        print(response.json())
+        # print(response.json())
         if response.status_code != 200:
             raise serializers.ValidationError("Failed to send OTP. Please try again later.")
         return otp_code
