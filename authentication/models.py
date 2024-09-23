@@ -61,7 +61,7 @@ class OTP(models.Model):
     is_verified = models.BooleanField(default=False)
 
     def is_expired(self):
-        return timezone.now() > self.created_at + timedelta(minutes=5)  # OTP valid for 5 minutes
+        return timezone.now() > self.created_at + timedelta(minutes=10)
 
     def __str__(self):
         return f"OTP for {self.phone_number}: {self.otp} (Verified: {self.is_verified})"

@@ -42,7 +42,6 @@ class SendOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=15)
 
     def validate_phone_number(self, value):
-        print(value)
         if len(value) != 13:
             raise serializers.ValidationError(_('Invalid phone number.'))
         try:
@@ -60,20 +59,20 @@ class SendOTPSerializer(serializers.Serializer):
         # Save the OTP in the database
         OTP.objects.create(phone_number=phone_number, otp=otp_code)
         # Send OTP using the Fast2SMS API
-        # response = requests.get(
-        #     'https://www.fast2sms.com/dev/bulkV2',
-        #     params={
-        #         'authorization': settings.FAST2SMS_API_KEY,  # Replace with your actual API key from settings
-        #         'variables_values': otp_code,
-        #         'route': 'otp',
-        #         'numbers': phone_number[:-10]
-        #     }, headers={
-        #         'Cache-Control': 'no-cache'
-        #     }
-        # )
-        # print(response.json())
-        # if response.status_code != 200:
-        #     raise serializers.ValidationError("Failed to send OTP. Please try again later.")
+        response = requests.get(
+            'https://www.fast2sms.com/dev/bulkV2',
+            params={
+                'authorization': settings.FAST2SMS_API_KEY,  # Replace with your actual API key from settings
+                'variables_values': otp_code,
+                'route': 'otp',
+                'numbers': phone_number[3:]
+            }, headers={
+                'Cache-Control': 'no-cache'
+            }
+        )
+        print(response.json())
+        if response.status_code != 200:
+            raise serializers.ValidationError("Failed to send OTP. Please try again later.")
         return otp_code
 
 

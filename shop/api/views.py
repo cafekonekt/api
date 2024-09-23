@@ -50,7 +50,7 @@ import json
 # Cashfree API credentials
 Cashfree.XClientId = settings.CASHFREE_CLIENT_ID
 Cashfree.XClientSecret = settings.CASHFREE_SECRET_KEY
-Cashfree.XEnvironment = Cashfree.SANDBOX
+Cashfree.XEnvironment = Cashfree.PRODUCTION
 x_api_version = "2023-08-01"
 
 

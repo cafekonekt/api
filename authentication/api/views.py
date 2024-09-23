@@ -7,6 +7,9 @@ from rest_framework import status
 from authentication.models import CustomUser
 from django.http import JsonResponse
 from rest_framework.permissions import IsAuthenticated
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
+
 
 @api_view(['GET'])
 def getRoutes(request):
@@ -66,15 +69,18 @@ class ValidateToken(APIView):
 
 class SendOTPView(APIView):
     permission_classes = []
+
+    @method_decorator(ratelimit(key='ip', rate='3/h', method='POST', block=True))
     def post(self, request, *args, **kwargs):
         serializer = SendOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        otp_code = serializer.send_otp()
-        return Response({"detail": "OTP sent successfully.", "otp": otp_code}, status=status.HTTP_200_OK)
+        serializer.send_otp()
+        return Response({"detail": "OTP sent successfully."}, status=status.HTTP_200_OK)
 
 
 class VerifyOTPView(APIView):
     permission_classes = []
+
     def post(self, request, *args, **kwargs):
         serializer = VerifyOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
