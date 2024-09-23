@@ -8,6 +8,7 @@ from authentication.models import CustomUser
 from django.http import JsonResponse
 from rest_framework.permissions import IsAuthenticated
 from django.utils.decorators import method_decorator
+from rest_framework_simplejwt.tokens import RefreshToken
 from django_ratelimit.decorators import ratelimit
 
 
@@ -72,6 +73,7 @@ class SendOTPView(APIView):
 
     @method_decorator(ratelimit(key='ip', rate='3/h', method='POST', block=True))
     def post(self, request, *args, **kwargs):
+        print('send otp', request.data)
         serializer = SendOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.send_otp()
@@ -82,31 +84,55 @@ class VerifyOTPView(APIView):
     permission_classes = []
 
     def post(self, request, *args, **kwargs):
-        serializer = VerifyOTPSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        user = CustomUser.objects.get(phone_number=serializer.validated_data['phone_number'])
-        tokens = serializer.create_tokens()
+        try:
+            serializer = VerifyOTPSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            
+            user = CustomUser.objects.get(phone_number=serializer.validated_data['phone_number'])
+            tokens = serializer.create_tokens()
 
-        response = JsonResponse({
-            'user': {
-                'email': user.email,
-                'name': user.name,
-                'role': user.role,
-                'phone_number': user.phone_number,
-            },
-            'tokens': tokens
-        }, status=status.HTTP_200_OK)
-        return response
+            response = JsonResponse({
+                'user': {
+                    'email': user.email,
+                    'name': user.name,
+                    'role': user.role,
+                    'phone_number': user.phone_number,
+                },
+                'tokens': tokens
+            }, status=status.HTTP_200_OK)
+            return response
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UpdateUserView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request, *args, **kwargs):
-        user = request.user
-        user_data = request.data
-        user.name = user_data.get('name', user.name)
-        user.email = user_data.get('email', user.email)
-        user.phone_number = user_data.get('phone_number', user.phone_number)
-        user.save()
-        return Response({"detail": "User updated successfully."}, status=status.HTTP_200_OK)
+        try:
+            user = request.user
+            user_data = request.data
+            user.name = user_data.get('name', user.name)
+            user.email = user_data.get('email', user.email)
+            user.phone_number = user_data.get('phone_number', user.phone_number)
+            user.save()
+
+            refresh = RefreshToken.for_user(user)
+
+            response = JsonResponse({
+                'user': {
+                    'email': user_data.get('email', user.email),
+                    'name': user_data.get('name', user.name),
+                    'role': user.role,
+                    'phone_number': user.phone_number,
+                },
+                'tokens': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            }, status=status.HTTP_200_OK)
+
+            return response
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
