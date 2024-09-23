@@ -11,3 +11,4 @@ channels-redis==4.2.0
 pillow==10.4.0
 cashfree-pg==4.2.4
 requests==2.32.3
+django-ratelimit==4.1.0
