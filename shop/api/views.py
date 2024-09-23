@@ -45,7 +45,6 @@ from cashfree_pg.models.customer_details import CustomerDetails
 from cashfree_pg.models.order_meta import OrderMeta
 
 import datetime
-import json
 
 # Cashfree API credentials
 Cashfree.XClientId = settings.CASHFREE_CLIENT_ID
