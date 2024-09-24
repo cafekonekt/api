@@ -41,12 +41,11 @@ urlpatterns = [
     path('checkout/<slug:menu_slug>/', CheckoutAPIView.as_view(), name='checkout'),
     path('payment/<slug:order_id>/', PaymentStatusAPIView.as_view(), name='payment-status'),
     path('cashfree/webhook/', CashfreeWebhookView.as_view(), name='cashfree-webhook'),
-    
+
     path('orders/', OrderList.as_view(), name='orders'),
     path('live-orders/', LiveOrders.as_view(), name='live-orders'),
     path('live-orders/<slug:order_id>/', LiveOrders.as_view(), name='live-orders-detail'),
     path('order/<slug:order_id>/', OrderDetailAPIView.as_view(), name='orders'),
-
 
     path('outlet/<slug:menu_slug>', OutletListView.as_view(), name='outlet'),
     path('outlet/', OutletListCreateView.as_view(), name='outlet'),

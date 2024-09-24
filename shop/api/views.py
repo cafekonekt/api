@@ -50,6 +50,8 @@ import datetime
 Cashfree.XClientId = settings.CASHFREE_CLIENT_ID
 Cashfree.XClientSecret = settings.CASHFREE_SECRET_KEY
 Cashfree.XEnvironment = Cashfree.PRODUCTION
+if settings.DEBUG:
+    Cashfree.XEnvironment = Cashfree.SANDBOX
 x_api_version = "2023-08-01"
 
 
