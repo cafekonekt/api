@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404, redirect
 from django.http import HttpResponseRedirect
-from shortener.models import ShortenedURL
+from shortener.models import ShortenedURL, AdGallery
 from shortener.api.serializers import URLShortenSerializer
 
 class CreateShortURL(APIView):
@@ -21,3 +21,17 @@ class RedirectShortURL(APIView):
     def get(self, request, short_code, *args, **kwargs):
         short_url = get_object_or_404(ShortenedURL, short_code=short_code)
         return HttpResponseRedirect(short_url.original_url)
+
+class AdGalleryList(APIView):
+    permission_classes = []
+    def get(self, request, *args, **kwargs):
+        ads = AdGallery.objects.filter(active=True)
+        ad_list = []
+        for ad in ads:
+            ad_list.append({
+                'title': ad.title,
+                'description': ad.description,
+                'image': ad.url,
+                'type': ad.type
+            })
+        return Response(ad_list)

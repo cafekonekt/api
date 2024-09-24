@@ -18,3 +18,23 @@ class ShortenedURL(models.Model):
 
     def __str__(self):
         return f"{self.original_url} -> {self.short_code}"
+
+class AdGallery(models.Model):
+    TYPE_CHOICES = (
+        ('large', 'Large'),
+        ('small', 'Small'),
+    )
+    title = models.CharField(max_length=100)
+    description = models.TextField(null=True, blank=True)
+    image = models.ImageField(upload_to='ad_gallery/')
+    url = models.URLField(max_length=500, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='small')
+    active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.title
+    
+    def save(self, *args, **kwargs):
+        self.url = f"https://api.tacoza.co/ad_gallery/{self.image.url}"
+        super(AdGallery, self).save(*args, **kwargs)
