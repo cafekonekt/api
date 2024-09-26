@@ -60,7 +60,4 @@ urlpatterns = [
 
     path('areas/<slug:area_slug>/', AreaDetailView.as_view(), name='area-detail'),
     path('subscription/', SocketSeller.as_view(), name='subscription'),
-] 
-if not settings.DEBUG:
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
