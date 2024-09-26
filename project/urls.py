@@ -8,7 +8,5 @@ urlpatterns = [
     path('', include('shortener.api.urls')),
     path('api/auth/', include('authentication.api.urls')),
     path('api/shop/', include('shop.api.urls')),
-]
-if not settings.DEBUG:
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
++ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
