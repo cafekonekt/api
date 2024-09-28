@@ -30,7 +30,7 @@ urlpatterns = [
     path('menu/<slug:menu_slug>/', FoodCategoryListCreateView.as_view(), name='food-category'),
 
     path('food-items/', FoodItemListCreateView.as_view(), name='food-item'),
-    path('food-items/<int:pk>/', FoodItemDetailView.as_view(), name='food-item-detail'),
+    path('food-items/<slug:slug>/', FoodItemDetailView.as_view(), name='food-item-detail'),
 
     path('addon-categories/', AddonCategoryListCreateView.as_view(), name='addon-category'),
     path('addon-categories/<int:pk>/', AddonCategoryDetailView.as_view(), name='addon-category-detail'),

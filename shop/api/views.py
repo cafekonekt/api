@@ -104,28 +104,34 @@ class FoodItemListCreateView(APIView):
 
 
 class FoodItemDetailView(APIView):
-    def get(self, request, id):
-        food_item = get_object_or_404(FoodItem, id=id)
+    def get(self, request, slug):
+        food_item = get_object_or_404(FoodItem, slug=slug)
         serializer = FoodItemSerializer(food_item)
         return Response(serializer.data)
     
-    def put(self, request, id):
-        food_item = get_object_or_404(FoodItem, id=id)
-        serializer = FoodItemSerializer(food_item, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
+    def put(self, request, slug):
+        try:
+            food_item = get_object_or_404(FoodItem, slug=slug)
+            for key, value in request.data.items():
+                setattr(food_item, key, value)
+                food_item.save()
+            serializer = FoodItemSerializer(food_item)
             return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response("Invalid data", status=status.HTTP_400_BAD_REQUEST)
 
-    def delete(self, request, id):
-        food_item = get_object_or_404(FoodItem, id=id)
+    def delete(self, request, slug):
+        food_item = get_object_or_404(FoodItem, slug=slug)
         food_item.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AddonCategoryListCreateView(APIView):
     def get(self, request):
-        addon_categories = AddonCategory.objects.all()
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        menu = Menu.objects.filter(outlet=outlet).first()
+        addon_categories = AddonCategory.objects.filter(menu=menu)
         serializer = AddonCategorySerializer(addon_categories, many=True)
         return Response(serializer.data)
     
@@ -464,6 +470,7 @@ class LiveOrders(APIView):
         elif data['status'] == 'processing':
             order.status = 'processing'
             order.updated_at = datetime.datetime.now()
+            order.prep_start_time = datetime.datetime.now()
             order.save()
             return Response({"message": "Order is being prepared."}, status=status.HTTP_200_OK)
 

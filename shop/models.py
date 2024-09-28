@@ -31,6 +31,7 @@ class Outlet(models.Model):
     average_preparation_time = models.PositiveIntegerField(default=30)
     services = models.CharField(max_length=100, default='dine_in')
     type = models.CharField(max_length=100, default='veg')
+    payment_methods = models.CharField(max_length=100, default='online')
     
     email = models.EmailField(null=True, blank=True)
     phone = models.CharField(max_length=15)
@@ -148,6 +149,7 @@ class Addon(models.Model):
     addon_type = models.CharField(max_length=10, choices=ADDONTYPE_CHOICES, default="veg")
     category = models.ForeignKey('AddonCategory', on_delete=models.CASCADE, related_name='addons', blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    in_stock = models.BooleanField(default=True)
     description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
