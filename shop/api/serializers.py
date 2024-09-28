@@ -25,12 +25,25 @@ class FoodTagSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 class AddonSerializer(serializers.ModelSerializer):
+    status_color = serializers.SerializerMethodField()
+
     class Meta:
         model = Addon
-        fields = ['id', 'name', 'price', 'description']
+        fields = ['id', 'name', 'addon_type', 'price', 'description', 'status_color']
+
+    def get_status_color(self, obj):
+        """Return the status color based on food_type."""
+        if obj.addon_type == 'veg':
+            return 'text-green-500'
+        elif obj.addon_type == 'egg':
+            return 'text-yellow-500'
+        elif obj.addon_type == 'nonveg':
+            return 'text-red-500'
+        return 'text-green-500'
 
 class AddonCategorySerializer(serializers.ModelSerializer):
     addons = serializers.SerializerMethodField()
+
     class Meta:
         model = AddonCategory
         fields = ['id', 'name', 'addons']
@@ -38,7 +51,8 @@ class AddonCategorySerializer(serializers.ModelSerializer):
     def get_addons(self, obj):
         """Return the addons of the category."""
         addons = Addon.objects.filter(category=obj)
-        return AddonSerializer(obj.addons.filter(category=obj), many=True).data
+        return AddonSerializer(addons, many=True).data
+
 
 class ItemVariantSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
@@ -71,9 +85,11 @@ class FoodItemSerializer(serializers.ModelSerializer):
             'price',
             'image_url',
             'in_stock',
+            'featured',
             'addons',
             'tags',
             'prepration_time',
+            'slug',
             'status_color',
             'rating',
             'variants']
@@ -161,6 +177,10 @@ class OutletSerializer(serializers.ModelSerializer):
         ('nonveg', 'Non-Veg'),
         ('egg', 'Egg')
     ]
+    PAYMENT_CHOICES = [
+        ('cash', 'Cash'),
+        ('online', 'Online')
+    ]
     logo = serializers.SerializerMethodField()
     services = serializers.ListField(
         child=serializers.ChoiceField(choices=[choice[0] for choice in SERVICE_CHOICES])
@@ -168,12 +188,15 @@ class OutletSerializer(serializers.ModelSerializer):
     type = serializers.ListField(
         child=serializers.ChoiceField(choices=[choice[0] for choice in TYPE_CHOICES])
     )
+    payment_methods = serializers.ListField(
+        child=serializers.ChoiceField(choices=[choice[0] for choice in PAYMENT_CHOICES])
+    )
     gallery = serializers.SerializerMethodField()
     menu_slug = serializers.SerializerMethodField()
 
     class Meta:
         model = Outlet
-        fields = ['id', 'name', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'type', 'slug']
+        fields = ['id', 'name', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'type', 'payment_methods', 'slug']
         depth = 2
 
     def get_menu_slug(self, obj):
@@ -197,6 +220,7 @@ class OutletSerializer(serializers.ModelSerializer):
         representation = super().to_representation(instance)
         representation['services'] = instance.services.split(',')
         representation['type'] = instance.type.split(',')
+        representation['payment_methods'] = instance.payment_methods.split(',')
         return representation
     
 
