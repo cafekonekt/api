@@ -20,7 +20,7 @@ from shop.models import (
     CartItem
 )
 class VariantAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'category', 'description')
+    list_display = ('id', 'name', 'category')
 
 admin.site.register(Shop)
 admin.site.register(Outlet)

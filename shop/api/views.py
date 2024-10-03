@@ -13,7 +13,8 @@ from shop.models import (
     OrderItem,
     Table,
     Order,
-    TableArea)
+    TableArea,
+    DiscountCoupon)
 from shop.api.serializers import (
     FoodCategorySerializer,
     OutletSerializer,
@@ -24,7 +25,7 @@ from shop.api.serializers import (
     TableSerializer,
     AreaSerializer,
     AddonCategorySerializer,
-    )
+    DiscountCouponSerializer)
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.permissions import AllowAny
@@ -181,13 +182,12 @@ class CartView(APIView):
         data = request.data
         food_item = get_object_or_404(FoodItem, id=data['food_item_id'])
         item_variant = get_object_or_404(ItemVariant, id=data['variant_id']) if data.get('variant_id') else None
-        variants = item_variant.variant if item_variant else None
         addons = Addon.objects.filter(id__in=data.get('addons', []))
         quantity = data.get('quantity', 1)
         id = data.get('id')
 
         cart_item, item_created = CartItem.objects.get_or_create(
-            item_id=id, cart=cart, food_item=food_item, variant=variants, defaults={'quantity': quantity}
+            item_id=id, cart=cart, food_item=food_item, variant=item_variant, defaults={'quantity': quantity}
         )
         if not item_created:
             cart_item.quantity += quantity
@@ -495,8 +495,9 @@ class OutletListView(APIView):
 
 class OutletListCreateView(APIView):
     def get(self, request):
-        outlets = Outlet.objects.all()
-        serializer = OutletSerializer(outlets, many=True)
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        serializer = OutletSerializer(outlet)
         return Response(serializer.data)
 
     def post(self, request):
@@ -590,7 +591,9 @@ class TableDetailView(APIView):
 
 class AreaListCreateView(APIView):
     def get(self, request):
-        areas = TableArea.objects.all()
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first() 
+        areas = TableArea.objects.filter(outlet=outlet)
         serializer = AreaSerializer(areas, many=True)
         return Response(serializer.data)
     
@@ -632,3 +635,17 @@ class SocketSeller(APIView):
         menu = Menu.objects.filter(outlet=outlet).first()
         url = f'/ws/sellers/{menu.menu_slug}'
         return Response({"url": url}, status=status.HTTP_200_OK)
+
+
+class DiscountCouponListCreateView(APIView):
+    def post(self, request):
+        serializer = DiscountCouponSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def get(self, request):
+        coupons = DiscountCoupon.objects.all()
+        serializer = DiscountCouponSerializer(coupons, many=True)
+        return Response(serializer.data)

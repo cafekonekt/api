@@ -18,10 +18,10 @@ from shop.api.views import (
     TableListView,
     TableListCreateView,
     TableDetailGetView,
-    TableDetailView,
     AreaListCreateView,
     AreaDetailView,
-    SocketSeller
+    SocketSeller,
+    DiscountCouponListCreateView,
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -60,6 +60,8 @@ urlpatterns = [
 
     path('areas/<slug:area_slug>/', AreaDetailView.as_view(), name='area-detail'),
     path('subscription/', SocketSeller.as_view(), name='subscription'),
+
+    path('discount-coupons/', DiscountCouponListCreateView.as_view(), name='discount-coupon'),
 ] 
 if not settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
