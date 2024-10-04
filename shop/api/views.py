@@ -441,13 +441,13 @@ class LiveOrders(APIView):
         orders = Order.objects.filter(outlet=outlet, created_at__date=datetime.datetime.now().date()).order_by('-created_at')
         serializer = OrderSerializer(orders, many=True)
         live_orders = {
-            "newOrders": [],
+            "new": [],
             "preparing": [],
             "completed": []
         }
         for order in serializer.data:
             if order['status'] == 'pending':
-                live_orders['newOrders'].append(order)
+                live_orders['new'].append(order)
             elif order['status'] == 'processing':
                 live_orders['preparing'].append(order)
             elif order['status'] == 'completed':

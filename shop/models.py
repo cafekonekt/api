@@ -367,7 +367,7 @@ class OrderItem(models.Model):
         price = self.food_item.price
         if self.variant:
             # get price from ItemVariant for selected variant
-            price = ItemVariant.objects.get(food_item=self.food_item, variant=self.variant).price
+            price = self.variant.price
         for addon in self.addons.all():
             price += addon.price
         return float(price * self.quantity)
