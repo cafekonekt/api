@@ -13,7 +13,8 @@ from shop.models import (
     OrderItem,
     Table,
     Order,
-    TableArea)
+    TableArea,
+    DiscountCoupon)
 from shop.api.serializers import (
     FoodCategorySerializer,
     OutletSerializer,
@@ -24,7 +25,7 @@ from shop.api.serializers import (
     TableSerializer,
     AreaSerializer,
     AddonCategorySerializer,
-    )
+    DiscountCouponSerializer)
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.permissions import AllowAny
@@ -104,28 +105,34 @@ class FoodItemListCreateView(APIView):
 
 
 class FoodItemDetailView(APIView):
-    def get(self, request, id):
-        food_item = get_object_or_404(FoodItem, id=id)
+    def get(self, request, slug):
+        food_item = get_object_or_404(FoodItem, slug=slug)
         serializer = FoodItemSerializer(food_item)
         return Response(serializer.data)
     
-    def put(self, request, id):
-        food_item = get_object_or_404(FoodItem, id=id)
-        serializer = FoodItemSerializer(food_item, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
+    def put(self, request, slug):
+        try:
+            food_item = get_object_or_404(FoodItem, slug=slug)
+            for key, value in request.data.items():
+                setattr(food_item, key, value)
+                food_item.save()
+            serializer = FoodItemSerializer(food_item)
             return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response("Invalid data", status=status.HTTP_400_BAD_REQUEST)
 
-    def delete(self, request, id):
-        food_item = get_object_or_404(FoodItem, id=id)
+    def delete(self, request, slug):
+        food_item = get_object_or_404(FoodItem, slug=slug)
         food_item.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AddonCategoryListCreateView(APIView):
     def get(self, request):
-        addon_categories = AddonCategory.objects.all()
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        menu = Menu.objects.filter(outlet=outlet).first()
+        addon_categories = AddonCategory.objects.filter(menu=menu)
         serializer = AddonCategorySerializer(addon_categories, many=True)
         return Response(serializer.data)
     
@@ -175,13 +182,12 @@ class CartView(APIView):
         data = request.data
         food_item = get_object_or_404(FoodItem, id=data['food_item_id'])
         item_variant = get_object_or_404(ItemVariant, id=data['variant_id']) if data.get('variant_id') else None
-        variants = item_variant.variant if item_variant else None
         addons = Addon.objects.filter(id__in=data.get('addons', []))
         quantity = data.get('quantity', 1)
         id = data.get('id')
 
         cart_item, item_created = CartItem.objects.get_or_create(
-            item_id=id, cart=cart, food_item=food_item, variant=variants, defaults={'quantity': quantity}
+            item_id=id, cart=cart, food_item=food_item, variant=item_variant, defaults={'quantity': quantity}
         )
         if not item_created:
             cart_item.quantity += quantity
@@ -250,6 +256,7 @@ class CheckoutAPIView(APIView):
             return Response({"detail": "Cart is empty."}, status=status.HTTP_400_BAD_REQUEST)
 
         order_type = request.data.get('order_type', 'dine_in')
+        payment_method = request.data.get('payment_method')
         table_id = request.data.get('table_id', None)
         if order_type == 'dine_in' and not table_id:
             return Response({"detail": "Table number is required for dine-in orders."}, status=status.HTTP_400_BAD_REQUEST)
@@ -269,9 +276,9 @@ class CheckoutAPIView(APIView):
             "status": "pending",
             "order_type": order_type,
             "table": table,
-            "cooking_instructions": cooking_instructions
+            "cooking_instructions": cooking_instructions,
+            "payment_method": payment_method
         }
-        print(order_data, 'order_data')
 
         # Create the order in your database
         order_serializer = CheckoutSerializer(data=order_data)
@@ -291,6 +298,12 @@ class CheckoutAPIView(APIView):
 
         # Clear the cart
         cart.delete()
+
+        if payment_method == 'cash':
+            return Response({
+                "order_id": order.order_id,
+                "payment_session_id": None
+            }, status=status.HTTP_201_CREATED)
 
         customer_details = CustomerDetails(
                     customer_id=user.get_user_id(),
@@ -435,13 +448,13 @@ class LiveOrders(APIView):
         orders = Order.objects.filter(outlet=outlet, created_at__date=datetime.datetime.now().date()).order_by('-created_at')
         serializer = OrderSerializer(orders, many=True)
         live_orders = {
-            "newOrders": [],
+            "new": [],
             "preparing": [],
             "completed": []
         }
         for order in serializer.data:
             if order['status'] == 'pending':
-                live_orders['newOrders'].append(order)
+                live_orders['new'].append(order)
             elif order['status'] == 'processing':
                 live_orders['preparing'].append(order)
             elif order['status'] == 'completed':
@@ -464,6 +477,7 @@ class LiveOrders(APIView):
         elif data['status'] == 'processing':
             order.status = 'processing'
             order.updated_at = datetime.datetime.now()
+            order.prep_start_time = datetime.datetime.now()
             order.save()
             return Response({"message": "Order is being prepared."}, status=status.HTTP_200_OK)
 
@@ -488,8 +502,9 @@ class OutletListView(APIView):
 
 class OutletListCreateView(APIView):
     def get(self, request):
-        outlets = Outlet.objects.all()
-        serializer = OutletSerializer(outlets, many=True)
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        serializer = OutletSerializer(outlet)
         return Response(serializer.data)
 
     def post(self, request):
@@ -583,7 +598,9 @@ class TableDetailView(APIView):
 
 class AreaListCreateView(APIView):
     def get(self, request):
-        areas = TableArea.objects.all()
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first() 
+        areas = TableArea.objects.filter(outlet=outlet)
         serializer = AreaSerializer(areas, many=True)
         return Response(serializer.data)
     
@@ -625,3 +642,17 @@ class SocketSeller(APIView):
         menu = Menu.objects.filter(outlet=outlet).first()
         url = f'/ws/sellers/{menu.menu_slug}'
         return Response({"url": url}, status=status.HTTP_200_OK)
+
+
+class DiscountCouponListCreateView(APIView):
+    def post(self, request):
+        serializer = DiscountCouponSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def get(self, request):
+        coupons = DiscountCoupon.objects.all()
+        serializer = DiscountCouponSerializer(coupons, many=True)
+        return Response(serializer.data)

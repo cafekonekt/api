@@ -2,6 +2,7 @@ from django.db import models
 from authentication.models import CustomUser
 from shortener.models import ShortenedURL
 from django.conf import settings
+from django.utils import timezone
 import uuid
 import re
 
@@ -31,6 +32,7 @@ class Outlet(models.Model):
     average_preparation_time = models.PositiveIntegerField(default=30)
     services = models.CharField(max_length=100, default='dine_in')
     type = models.CharField(max_length=100, default='veg')
+    payment_methods = models.CharField(max_length=100, default='online')
     
     email = models.EmailField(null=True, blank=True)
     phone = models.CharField(max_length=15)
@@ -103,54 +105,23 @@ class Menu(models.Model):
     class Meta:
         ordering = ['created_at']
 
-class VariantCategory(models.Model):
-    name = models.CharField(max_length=50)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        ordering = ['name']
-
-class Variant(models.Model):
-    name = models.CharField(max_length=50)
-    category = models.ForeignKey('VariantCategory', on_delete=models.CASCADE, related_name='variants', blank=True, null=True)
-    description = models.TextField(blank=True, null=True)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        ordering = ['name']
-
-class ItemVariant(models.Model):
-    food_item = models.ForeignKey('FoodItem', on_delete=models.CASCADE, related_name='item_variants')
-    variant = models.ForeignKey('Variant', on_delete=models.CASCADE, related_name='item_variants')
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-
-    def __str__(self):
-        return f"{self.food_item.name} - {self.variant.name}"
-    
-    class Meta:
-        ordering = ['food_item']
-
 class Addon(models.Model):
     ADDONTYPE_CHOICES = [
         ('veg', 'Veg'),
         ('egg', 'Egg'),
         ('nonveg', 'Non-Veg')
     ]
-
     name = models.CharField(max_length=100)
     menu = models.ForeignKey('Menu', on_delete=models.CASCADE, related_name='addons')
     addon_type = models.CharField(max_length=10, choices=ADDONTYPE_CHOICES, default="veg")
     category = models.ForeignKey('AddonCategory', on_delete=models.CASCADE, related_name='addons', blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    in_stock = models.BooleanField(default=True)
     description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    item_variant = models.ManyToManyField("ItemVariant", related_name='addons', blank=True, null=True)
+    
 
     def __str__(self):
         return self.name
@@ -169,6 +140,40 @@ class AddonCategory(models.Model):
     
     class Meta:
         ordering = ['name']
+
+class VariantCategory(models.Model):
+    name = models.CharField(max_length=50)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name']
+
+class Variant(models.Model):
+    name = models.CharField(max_length=50)
+    category = models.ForeignKey(VariantCategory, on_delete=models.CASCADE, related_name='options')
+    created_at = models.DateTimeField(default=timezone.now)  # Added default value
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name']
+
+class ItemVariant(models.Model):
+    food_item = models.ForeignKey('FoodItem', on_delete=models.CASCADE, related_name='item_variants')
+    variant = models.ManyToManyField('Variant', related_name='item_variants')
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.food_item.name} - {[variant.name for variant in self.variant.all()]} - {float(self.price)}"
+    
+    class Meta:
+        ordering = ['food_item']
 
 class FoodItem(models.Model):
     FOODTYPE_CHOICES = [
@@ -190,7 +195,7 @@ class FoodItem(models.Model):
     featured = models.BooleanField(default=False)
     in_stock = models.BooleanField(default=True)
     addons = models.ManyToManyField(Addon, related_name='food_items', blank=True)
-    variant = models.ForeignKey(VariantCategory, on_delete=models.CASCADE, related_name='food_items', blank=True, null=True)
+    variant = models.ManyToManyField(VariantCategory, related_name='food_items', blank=True, null=True)
     tags = models.ManyToManyField('FoodTag', related_name='food_items', blank=True)
     
     prepration_time = models.PositiveIntegerField(default=30)
@@ -266,7 +271,7 @@ class CartItem(models.Model):
     item_id = models.CharField(max_length=100)
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     food_item = models.ForeignKey(FoodItem, on_delete=models.CASCADE, related_name='cart_items')
-    variant = models.ForeignKey(Variant, on_delete=models.CASCADE, blank=True, null=True)
+    variant = models.ForeignKey(ItemVariant, on_delete=models.CASCADE, blank=True, null=True)
     quantity = models.PositiveIntegerField()
     addons = models.ManyToManyField(Addon, related_name='cart_items', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -278,8 +283,7 @@ class CartItem(models.Model):
     def get_total_price(self):
         price = self.food_item.price
         if self.variant:
-            # get price from ItemVariant for selected variant
-            price = ItemVariant.objects.get(food_item=self.food_item, variant=self.variant).price
+            price += self.variant.price
         for addon in self.addons.all():
             price += addon.price
         return price * self.quantity
@@ -312,6 +316,13 @@ class Order(models.Model):
         ('success', 'Success'),
         ('failed', 'Failed')
     ]
+    PAYMENT_METHOD_CHOICES = [
+        ('online', 'Online'),
+        ('cash', 'Cash'),
+        ('card', 'Card'),
+        ('wallet', 'Wallet'),
+        ('upi', 'UPI')
+    ]
     order_id = models.CharField(max_length=500, default=uuid.uuid4, editable=False, primary_key=True)
     payment_id = models.CharField(max_length=500, blank=True, null=True)
     payment_session_id = models.CharField(max_length=500, blank=True, null=True)
@@ -327,6 +338,7 @@ class Order(models.Model):
     
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     payment_status = models.CharField(max_length=30, choices=PAYMENT_STATUS_CHOICES, default='active')
+    payment_method = models.CharField(max_length=100, choices=PAYMENT_METHOD_CHOICES, default='online')
     transaction_status = models.CharField(max_length=10, choices=TRANSCATION_STATUS_CHOICES, default='pending')
     
     created_at = models.DateTimeField(auto_now_add=True)
@@ -347,7 +359,7 @@ class Order(models.Model):
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     food_item = models.ForeignKey(FoodItem, on_delete=models.CASCADE)
-    variant = models.ForeignKey(Variant, on_delete=models.CASCADE, blank=True, null=True)
+    variant = models.ForeignKey(ItemVariant, on_delete=models.CASCADE, blank=True, null=True)
     quantity = models.PositiveIntegerField()
     addons = models.ManyToManyField(Addon, related_name='order_items', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -363,7 +375,7 @@ class OrderItem(models.Model):
         price = self.food_item.price
         if self.variant:
             # get price from ItemVariant for selected variant
-            price = ItemVariant.objects.get(food_item=self.food_item, variant=self.variant).price
+            price = self.variant.price
         for addon in self.addons.all():
             price += addon.price
         return float(price * self.quantity)
@@ -404,3 +416,33 @@ class TableArea(models.Model):
     
     class Meta:
         ordering = ['name']
+
+class DiscountCoupon(models.Model):
+    DISCOUNT_TYPE_CHOICES = [
+        ('percentage', 'Percentage'),
+        ('flat', 'Flat')
+    ]
+    coupon_code = models.CharField(max_length=100, unique=True)
+    outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE, null=True, blank=True)
+
+    discount_type = models.CharField(max_length=10, choices=DISCOUNT_TYPE_CHOICES, default='percentage')
+    discount_value = models.DecimalField(max_digits=10, decimal_places=2)
+
+    minimum_order_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    max_order_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    use_limit = models.PositiveIntegerField(default=1)
+    use_limit_per_user = models.PositiveIntegerField(default=1)
+
+    products = models.ManyToManyField(FoodItem, related_name='coupons', blank=True)
+
+    valid_from = models.DateTimeField()
+    valid_to = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.coupon_code
+    
+    class Meta:
+        ordering = ['created_at']

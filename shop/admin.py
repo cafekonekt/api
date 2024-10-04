@@ -19,12 +19,8 @@ from shop.models import (
     Cart,
     CartItem
 )
-
 class VariantAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'category', 'description')
-
-class OrderAdmin(admin.ModelAdmin):
-    list_display = ('order_id', 'status', 'table', 'outlet', 'total', 'created_at')
+    list_display = ('id', 'name', 'category')
 
 admin.site.register(Shop)
 admin.site.register(Outlet)
@@ -40,7 +36,7 @@ admin.site.register(Table)
 admin.site.register(TableArea)
 admin.site.register(VariantCategory)
 admin.site.register(ItemVariant)
-admin.site.register(Order, OrderAdmin)
+admin.site.register(Order)
 admin.site.register(OrderItem)
 admin.site.register(Cart)
 admin.site.register(CartItem)

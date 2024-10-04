@@ -10,14 +10,19 @@ from shop.models import (
     Outlet,
     OutletImage,
     ItemVariant,
+    Variant,
+    VariantCategory,
     CartItem,
     Order,
     OrderItem,
     Table,
     TableArea,
-    Menu)
+    Menu,
+    DiscountCoupon)
 from authentication.api.serializers import UserSerializer
 from django.conf import settings
+from django.utils import timezone
+from django.db.models import Count
 
 class FoodTagSerializer(serializers.ModelSerializer):
     class Meta:
@@ -25,12 +30,19 @@ class FoodTagSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 class AddonSerializer(serializers.ModelSerializer):
+    applied_variant = serializers.SerializerMethodField()
+
     class Meta:
         model = Addon
-        fields = ['id', 'name', 'price', 'description']
+        fields = ['id', 'name', 'addon_type', 'price', 'description', 'applied_variant']
+
+    def get_applied_variant(self, obj):
+        """Return the variant name."""
+        return [variant.id for variant in obj.item_variant.all()] if obj.item_variant else None
 
 class AddonCategorySerializer(serializers.ModelSerializer):
     addons = serializers.SerializerMethodField()
+
     class Meta:
         model = AddonCategory
         fields = ['id', 'name', 'addons']
@@ -38,26 +50,34 @@ class AddonCategorySerializer(serializers.ModelSerializer):
     def get_addons(self, obj):
         """Return the addons of the category."""
         addons = Addon.objects.filter(category=obj)
-        return AddonSerializer(obj.addons.filter(category=obj), many=True).data
-
+        return AddonSerializer(addons, many=True).data
+    
 class ItemVariantSerializer(serializers.ModelSerializer):
+    variant_slug = serializers.SerializerMethodField()
     name = serializers.SerializerMethodField()
+
     class Meta:
         model = ItemVariant
-        fields = ['id', 'name', 'price']
+        fields = ['id', 'price', 'name', 'variant_slug']
 
     def get_name(self, obj):
         """Return the variant name."""
-        return obj.variant.name
+        return '-'.join([str(variant.name) for variant in obj.variant.all()])
+    
+    def get_variant_slug(self, obj):
+        """Return the sorted variant IDs joined by a dash."""
+        return '-'.join([str(variant.id) for variant in sorted(obj.variant.all(), key=lambda v: v.id)])
 
 class FoodItemSerializer(serializers.ModelSerializer):
     addons = AddonSerializer(many=True, read_only=True)
     tags = FoodTagSerializer(many=True, read_only=True)
     food_subcategory = serializers.SerializerMethodField()
-    status_color = serializers.SerializerMethodField()
     food_category = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
-    variants = serializers.SerializerMethodField()
+    variant = serializers.SerializerMethodField()
+    steps = serializers.SerializerMethodField()
+    item_variants = ItemVariantSerializer(many=True, read_only=True)    
+    price = serializers.DecimalField(max_digits=10, decimal_places=2)
 
     class Meta:
         model = FoodItem
@@ -71,12 +91,15 @@ class FoodItemSerializer(serializers.ModelSerializer):
             'price',
             'image_url',
             'in_stock',
+            'featured',
             'addons',
             'tags',
             'prepration_time',
-            'status_color',
+            'slug',
             'rating',
-            'variants']
+            'steps',
+            'variant',
+            'item_variants']
 
     def get_food_category(self, obj):
         """Return the category name if it exists, else None."""
@@ -86,26 +109,113 @@ class FoodItemSerializer(serializers.ModelSerializer):
         """Return the subcategory name if it exists, else None."""
         return obj.food_subcategory.name if obj.food_subcategory else None
 
-    def get_variants(self, obj):
-        """Return the variants of the food item."""
-        variants = ItemVariant.objects.filter(food_item=obj)
-        if variants:
-            return { "name": obj.variant.name, "type": ItemVariantSerializer(variants, many=True).data}
-        return None
+    def get_variant(self, obj):
+        # Fetch all variant categories associated with the food item
+        categories = obj.variant.all()
+        # Fetch all item variants for the food item
+        item_variants = ItemVariant.objects.filter(food_item=obj)
+        # If there are no variants, return None
+        if not categories.exists():
+            return None
+        # Get the first variant category
+        category = categories.first()
+        # Find all options under this category
+        options = Variant.objects.filter(category=category)
 
-    def get_status_color(self, obj):
-        """Return the status color based on food_type."""
-        if obj.food_type == 'veg':
-            return 'text-green-500'
-        elif obj.food_type == 'egg':
-            return 'text-yellow-500'
-        elif obj.food_type == 'nonveg':
-            return 'text-red-500'
-        return 'text-green-500'
+
+        # Build a list to hold the options data
+        options_data = []
+        for option in options:
+            # List to hold the included categories
+            included_categories = [category]
+            # List to hold the included options
+            included_options = [option]
+            # Get the related item variant for the current option
+            num_included = len(included_options)
+            related_item_variant = item_variants.filter(variant__in=included_options).annotate(num_included=Count('variant')).filter(num_included=num_included).first()
+
+            # Check if there are next-level variants for the current option
+            next_variants_data = None
+            if related_item_variant:
+                # Get the nested options for the next variant
+                next_variants_data = self._build_next_variant_data(included_categories, included_options, categories, item_variants)
+            
+                # Build option data
+                option_data = {
+                    "id": option.id,
+                    "name": option.name,
+                    "price": float(related_item_variant.price) if len(categories) == 1 else None,  # Only show price at the final level
+                    "variant": next_variants_data
+                }
+                options_data.append(option_data)
+
+        # Build the structure for the current variant category
+        variant_data = {
+            "id": category.id,
+            "name": category.name,
+            "options": options_data
+        }
+        
+        return variant_data
+
+    def get_steps(self, obj):
+        """Return the preparation steps."""
+        return len(obj.variant.all())
+
+    def _build_next_variant_data(self, included_categories, included_options, categories, item_variants):
+        """Helper method to recursively build the next variant options."""
+        if len(included_categories) == len(categories):
+            return None
+
+        # Find the next category that has not been included yet
+        next_category = None
+        for category in categories:
+            if category not in included_categories:
+                next_category = category
+                break
+        if not next_category:
+            return None
+
+        options = Variant.objects.filter(category=next_category)
+        included_categories.append(next_category)
+
+        options_data = []
+        for option in options:
+            included_options.append(option)
+            num_included = len(included_options)
+            related_item_variant = item_variants.filter(variant__in=included_options).annotate(num_included=Count('variant')).filter(num_included=num_included).first()
+
+            next_variants_data = None
+            if related_item_variant:
+                next_variants_data = self._build_next_variant_data(included_categories, included_options, categories, item_variants)
+            
+                option_data = {
+                    "id": option.id,
+                    "name": option.name,
+                    "price": float(related_item_variant.price) if len(categories) == len(included_categories) else None,  # Show price only at the final level
+                    "variant": next_variants_data
+                }
+                options_data.append(option_data)
+            included_options.pop()
+        
+        return {
+            "id": next_category.id,
+            "name": next_category.name,
+            "options": options_data
+        }
 
     def get_rating(self, obj):
         """Return the average rating of the food item."""
         return 4.5
+    
+    def to_representation(self, instance):
+        """Override to_representation to handle empty addons."""
+        representation = super().to_representation(instance)
+        if not instance.addons.exists():
+            representation['addons'] = None
+        if not instance.variant.exists():
+            representation['variants'] = None
+        return representation
 
 class CartItemSerializer(serializers.ModelSerializer):
     food_item = FoodItemSerializer()
@@ -123,11 +233,10 @@ class CartItemSerializer(serializers.ModelSerializer):
 
     def get_variant(self, obj):
         """Return the variant name."""
-        item_variant = ItemVariant.objects.filter(food_item=obj.food_item, variant=obj.variant).first()
         if obj.variant:
             return {
-                "name": obj.variant.name,
-                "price": item_variant.price
+                "name": '-'.join([str(variant.name) for variant in obj.variant.variant.all()]),
+                "price": float(obj.variant.price)
             }
 
 class SubCategorySerializer(serializers.ModelSerializer):
@@ -149,7 +258,6 @@ class FoodCategorySerializer(serializers.ModelSerializer):
         """Return food items directly under this category (those without a subcategory)."""
         return FoodItemSerializer(obj.food_items.filter(food_subcategory__isnull=True), many=True).data
 
-
 class OutletSerializer(serializers.ModelSerializer):
     SERVICE_CHOICES = [
         ('dine_in', 'Dine-In'),
@@ -161,6 +269,10 @@ class OutletSerializer(serializers.ModelSerializer):
         ('nonveg', 'Non-Veg'),
         ('egg', 'Egg')
     ]
+    PAYMENT_CHOICES = [
+        ('cash', 'Cash'),
+        ('online', 'Online')
+    ]
     logo = serializers.SerializerMethodField()
     services = serializers.ListField(
         child=serializers.ChoiceField(choices=[choice[0] for choice in SERVICE_CHOICES])
@@ -168,12 +280,15 @@ class OutletSerializer(serializers.ModelSerializer):
     type = serializers.ListField(
         child=serializers.ChoiceField(choices=[choice[0] for choice in TYPE_CHOICES])
     )
+    payment_methods = serializers.ListField(
+        child=serializers.ChoiceField(choices=[choice[0] for choice in PAYMENT_CHOICES])
+    )
     gallery = serializers.SerializerMethodField()
     menu_slug = serializers.SerializerMethodField()
 
     class Meta:
         model = Outlet
-        fields = ['id', 'name', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'type', 'slug']
+        fields = ['id', 'name', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'type', 'payment_methods', 'slug']
         depth = 2
 
     def get_menu_slug(self, obj):
@@ -197,6 +312,7 @@ class OutletSerializer(serializers.ModelSerializer):
         representation = super().to_representation(instance)
         representation['services'] = instance.services.split(',')
         representation['type'] = instance.type.split(',')
+        representation['payment_methods'] = instance.payment_methods.split(',')
         return representation
     
 
@@ -218,7 +334,9 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
     def get_variant(self, obj):
         """Return the variant name."""
-        return obj.variant.name if obj.variant else None
+        if not obj.variant:
+            return None
+        return '-'.join([str(variant.name) for variant in obj.variant.variant.all()])
 
     def get_totalPrice(self, obj):
         """Return the total price of the order item."""
@@ -228,7 +346,6 @@ class OrderTimelineSerializer(serializers.Serializer):
     stage = serializers.CharField()
     status = serializers.CharField()
     content = serializers.CharField()
-
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True)
@@ -292,7 +409,6 @@ class OrderSerializer(serializers.ModelSerializer):
         """Return the table name."""
         return obj.table.name if obj.table else None
 
-
 class CheckoutSerializer(serializers.Serializer):
     class Meta:
         model = Order
@@ -324,3 +440,14 @@ class AreaSerializer(serializers.ModelSerializer):
     class Meta:
         model = TableArea
         fields = ['id', 'name', 'outlet']
+
+class DiscountCouponSerializer(serializers.ModelSerializer):
+    is_active = serializers.SerializerMethodField()
+    class Meta:
+        model = DiscountCoupon
+        fields = ['id', 'code', 'discount', 'is_active']
+
+    def get_is_active(self, obj):
+        """Calculate if the coupon is active."""
+        today = timezone.now().date()
+        return obj.valid_from <= today <= obj.valid_till
