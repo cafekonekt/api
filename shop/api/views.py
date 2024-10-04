@@ -327,7 +327,6 @@ class CheckoutAPIView(APIView):
 
         # try:
         api_response = Cashfree().PGCreateOrder(x_api_version, create_order_request, None, None)
-        print(api_response, 'response')
         order.payment_id = api_response.data.cf_order_id
         order.payment_session_id = api_response.data.payment_session_id
         order.save()
@@ -346,8 +345,6 @@ class CashfreeWebhookView(APIView):
     permission_classes = [AllowAny]  # Allow webhook to be accessed without authentication
 
     def post(self, request, *args, **kwargs):
-        print(request.body, 'request')
-        print(request.data, 'headers')
         # Get raw request data
         body = request.data
         
@@ -370,6 +367,7 @@ class CashfreeWebhookView(APIView):
             # Update order status to 'paid'
             order = Order.objects.get(order_id=order_id)
             order.payment_status = 'success'
+            order.payment_method = body['data']['payment']['payment_group']
             order.save()
             
             menu = Menu.objects.get(outlet=order.outlet)
