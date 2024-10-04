@@ -336,7 +336,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         """Return the variant name."""
         if not obj.variant:
             return None
-        return '-'.join([str(variant.name) for variant in obj.variant.variant.all()]),
+        return '-'.join([str(variant.name) for variant in obj.variant.variant.all()])
 
     def get_totalPrice(self, obj):
         """Return the total price of the order item."""

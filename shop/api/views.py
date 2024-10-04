@@ -256,6 +256,7 @@ class CheckoutAPIView(APIView):
             return Response({"detail": "Cart is empty."}, status=status.HTTP_400_BAD_REQUEST)
 
         order_type = request.data.get('order_type', 'dine_in')
+        payment_method = request.data.get('payment_method')
         table_id = request.data.get('table_id', None)
         if order_type == 'dine_in' and not table_id:
             return Response({"detail": "Table number is required for dine-in orders."}, status=status.HTTP_400_BAD_REQUEST)
@@ -275,9 +276,9 @@ class CheckoutAPIView(APIView):
             "status": "pending",
             "order_type": order_type,
             "table": table,
-            "cooking_instructions": cooking_instructions
+            "cooking_instructions": cooking_instructions,
+            "payment_method": payment_method
         }
-        print(order_data, 'order_data')
 
         # Create the order in your database
         order_serializer = CheckoutSerializer(data=order_data)
@@ -297,6 +298,12 @@ class CheckoutAPIView(APIView):
 
         # Clear the cart
         cart.delete()
+
+        if payment_method == 'cash':
+            return Response({
+                "order_id": order.order_id,
+                "payment_session_id": None
+            }, status=status.HTTP_201_CREATED)
 
         customer_details = CustomerDetails(
                     customer_id=user.get_user_id(),

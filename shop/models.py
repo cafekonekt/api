@@ -316,6 +316,13 @@ class Order(models.Model):
         ('success', 'Success'),
         ('failed', 'Failed')
     ]
+    PAYMENT_METHOD_CHOICES = [
+        ('online', 'Online'),
+        ('cash', 'Cash'),
+        ('card', 'Card'),
+        ('wallet', 'Wallet'),
+        ('upi', 'UPI')
+    ]
     order_id = models.CharField(max_length=500, default=uuid.uuid4, editable=False, primary_key=True)
     payment_id = models.CharField(max_length=500, blank=True, null=True)
     payment_session_id = models.CharField(max_length=500, blank=True, null=True)
@@ -331,6 +338,7 @@ class Order(models.Model):
     
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     payment_status = models.CharField(max_length=30, choices=PAYMENT_STATUS_CHOICES, default='active')
+    payment_method = models.CharField(max_length=100, choices=PAYMENT_METHOD_CHOICES, default='online')
     transaction_status = models.CharField(max_length=10, choices=TRANSCATION_STATUS_CHOICES, default='pending')
     
     created_at = models.DateTimeField(auto_now_add=True)
