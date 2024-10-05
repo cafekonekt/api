@@ -322,7 +322,6 @@ class CheckoutAPIView(APIView):
         order_meta = OrderMeta()
         order_meta.return_url = f"https://app.tacoza.co/order/{order.order_id}"
         order_meta.notify_url = f"https://api.tacoza.co/api/shop/cashfree/webhook/"
-        order_meta.payment_methods = "cc,dc,upi"
         create_order_request.order_meta = order_meta
 
         # try:
@@ -345,11 +344,7 @@ class CashfreeWebhookView(APIView):
     permission_classes = [AllowAny]  # Allow webhook to be accessed without authentication
 
     def post(self, request, *args, **kwargs):
-        # Get raw request data
-        body = request.data
-        
         decoded_body = request.body.decode('utf-8')
-
         timestamp = request.headers.get('x-webhook-timestamp')
         signature = request.headers.get('x-webhook-signature')
 
@@ -358,6 +353,8 @@ class CashfreeWebhookView(APIView):
         cashfree = Cashfree()
         cashfree.PGVerifyWebhookSignature(signature, decoded_body, timestamp)
 
+        # Get raw request data
+        body = request.data
         # Process payment data
         order_id = body['data']['order']['order_id']
         transaction_status = body['data']['payment']['payment_status']
