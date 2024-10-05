@@ -6,6 +6,8 @@ on:
 env:
   AWS_PRIVATE_KEY: ${{ secrets.AWS_PRIVATE_KEY }}
   DJANGO_PROD_ENV: ${{ secrets.DJANGO_PROD_ENV }}
+  AWS_INSTANCE_IP: ${{ secrets.AWS_INSTANCE_IP }}
+  AWS_INSTANCE_USERNAME: ${{ secrets.AWS_INSTANCE_USERNAME }}
 
 permissions: write-all
 
@@ -20,17 +22,17 @@ jobs:
     
     - name: Pull Recent git changes
       run: |
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@43.205.226.200 'cd api && git pull origin main'
+        ssh -o StrictHostKeyChecking=no -i key.pem ${{ env.AWS_INSTANCE_USERNAME }}@${{ env.AWS_INSTANCE_IP }} 'cd api && git pull origin main'
 
     - name: Set Django ENV
       run: |
         echo "${{ env.DJANGO_PROD_ENV }}" > .env.prod
-        scp -i key.pem $(pwd)/.env.prod ubuntu@43.205.226.200:/home/ubuntu/api
+        scp -i key.pem $(pwd)/.env.prod ${{ env.AWS_INSTANCE_USERNAME }}@${{ env.AWS_INSTANCE_IP }}:/home/${{ env.AWS_INSTANCE_USERNAME }}/api
 
     - name: Stop running container
       run: |
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@43.205.226.200 'docker compose -f "/home/ubuntu/api/docker-compose.prod.yml" down'
+        ssh -o StrictHostKeyChecking=no -i key.pem ${{ env.AWS_INSTANCE_USERNAME }}@${{ env.AWS_INSTANCE_IP }} 'docker compose -f "/home/${{ env.AWS_INSTANCE_USERNAME }}/api/docker-compose.prod.yml" down'
 
     - name: Run new container
       run: |
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@43.205.226.200 'docker compose -f "/home/ubuntu/api/docker-compose.prod.yml" up -d --build'
+        ssh -o StrictHostKeyChecking=no -i key.pem ${{ env.AWS_INSTANCE_USERNAME }}@${{ env.AWS_INSTANCE_IP }} 'docker compose -f "/home/${{ env.AWS_INSTANCE_USERNAME }}/api/docker-compose.prod.yml" up -d --build'
