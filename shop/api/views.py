@@ -25,7 +25,7 @@ from shop.api.serializers import (
     TableSerializer,
     AreaSerializer,
     AddonCategorySerializer,
-    DiscountCouponSerializer)
+    DiscountCouponDetailSerializer)
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.permissions import AllowAny
@@ -641,7 +641,12 @@ class SocketSeller(APIView):
 
 class DiscountCouponListCreateView(APIView):
     def post(self, request):
-        serializer = DiscountCouponSerializer(data=request.data)
+        user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        if not outlet:
+            return Response({"detail": "You are not authorized to create a discount coupon."}, status=status.HTTP_403_FORBIDDEN)
+        serializer = DiscountCouponDetailSerializer(data={**request.data, "outlet": outlet.id})
+        print(serializer)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -649,5 +654,5 @@ class DiscountCouponListCreateView(APIView):
     
     def get(self, request):
         coupons = DiscountCoupon.objects.all()
-        serializer = DiscountCouponSerializer(coupons, many=True)
+        serializer = DiscountCouponDetailSerializer(coupons, many=True)
         return Response(serializer.data)

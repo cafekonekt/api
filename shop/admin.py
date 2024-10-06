@@ -17,7 +17,8 @@ from shop.models import (
     Order,
     OrderItem,
     Cart,
-    CartItem
+    CartItem,
+    DiscountCoupon,
 )
 class VariantAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'category')
@@ -40,3 +41,4 @@ admin.site.register(Order)
 admin.site.register(OrderItem)
 admin.site.register(Cart)
 admin.site.register(CartItem)
+admin.site.register(DiscountCoupon)
