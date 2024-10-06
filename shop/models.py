@@ -283,7 +283,7 @@ class CartItem(models.Model):
     def get_total_price(self):
         price = self.food_item.price
         if self.variant:
-            price += self.variant.price
+            price = self.variant.price
         for addon in self.addons.all():
             price += addon.price
         return price * self.quantity
@@ -441,8 +441,8 @@ class DiscountCoupon(models.Model):
 
     products = models.ManyToManyField(FoodItem, related_name='coupons', blank=True)
 
-    valid_from = models.DateTimeField()
-    valid_to = models.DateTimeField()
+    valid_from = models.DateField()
+    valid_to = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

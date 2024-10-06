@@ -441,13 +441,24 @@ class AreaSerializer(serializers.ModelSerializer):
         model = TableArea
         fields = ['id', 'name', 'outlet']
 
-class DiscountCouponSerializer(serializers.ModelSerializer):
+class DiscountCouponDetailSerializer(serializers.ModelSerializer):
     is_active = serializers.SerializerMethodField()
     class Meta:
         model = DiscountCoupon
-        fields = ['id', 'code', 'discount', 'is_active']
+        fields = ['id', 
+                  'outlet',
+                  'coupon_code', 
+                  'discount_type', 
+                  'discount_value', 
+                  'minimum_order_value', 
+                  'max_order_value', 
+                  'use_limit',
+                  'use_limit_per_user',
+                  'valid_from', 
+                  'valid_to', 
+                  'is_active']
 
     def get_is_active(self, obj):
         """Calculate if the coupon is active."""
         today = timezone.now().date()
-        return obj.valid_from <= today <= obj.valid_till
+        return obj.valid_from <= today <= obj.valid_to
