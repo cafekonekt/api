@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from authentication.models import WebPushInfo
 from shop.models import (
     FoodCategory,
     Menu,
@@ -45,7 +46,10 @@ from cashfree_pg.api_client import Cashfree
 from cashfree_pg.models.customer_details import CustomerDetails
 from cashfree_pg.models.order_meta import OrderMeta
 
+from project.utils import send_notification_to_user
+
 import datetime
+import json
 
 # Cashfree API credentials
 Cashfree.XClientId = settings.CASHFREE_CLIENT_ID
@@ -56,6 +60,31 @@ if settings.DEBUG:
 x_api_version = "2023-08-01"
 
 
+class WebPushSubscriptionView(APIView):
+    permission_classes = []
+    def post(self, request):
+        user = request.user
+        subscription_data = request.data
+        web_push_info, created = WebPushInfo.objects.get_or_create(
+            user=user,
+            endpoint=subscription_data['endpoint'],
+        )
+        web_push_info.p256dh = subscription_data['keys']['p256dh']
+        web_push_info.auth = subscription_data['keys']['auth']
+        web_push_info.save()
+
+        payload = json.dumps({"title": "Test Notification", "body": "This is a test message."})
+        send_notification_to_user(user, payload)
+        return Response({'message': 'Subscription saved successfully.'}, status=status.HTTP_201_CREATED)
+
+class TestNotificationView(APIView):
+    permission_classes = []
+    def post(self, request):
+        user = request.user
+        payload = json.dumps({"title": "Test Notification", "body": "This is a test message."})
+        send_notification_to_user(user, payload)
+        return Response({'message': 'Notification sent.'}, status=status.HTTP_200_OK)
+                        
 class FoodCategoryListCreateView(APIView):
     permission_classes = []
 
@@ -440,7 +469,7 @@ class LiveOrders(APIView):
         user = request.user
         outlet = Outlet.objects.filter(outlet_manager=user).first()
         # return all orders of current date categorised by status
-        orders = Order.objects.filter(outlet=outlet, created_at__date=datetime.datetime.now().date()).order_by('-created_at')
+        orders = Order.objects.filter(outlet=outlet).order_by('-created_at')
         serializer = OrderSerializer(orders, many=True)
         live_orders = {
             "new": [],
@@ -467,6 +496,7 @@ class LiveOrders(APIView):
             order.status = 'completed'
             order.updated_at = datetime.datetime.now()
             order.save()
+            send_notification_to_user(user, {"title": "Order Completed", "body": "Your order has been completed."})
             return Response({"message": "Order completed successfully."}, status=status.HTTP_200_OK)
 
         elif data['status'] == 'processing':
@@ -474,12 +504,14 @@ class LiveOrders(APIView):
             order.updated_at = datetime.datetime.now()
             order.prep_start_time = datetime.datetime.now()
             order.save()
+            send_notification_to_user(user, {"title": "Order Processing", "body": "Your order is being prepared."})
             return Response({"message": "Order is being prepared."}, status=status.HTTP_200_OK)
 
         elif data['status'] == 'pending':
             order.status = 'pending'
             order.updated_at = datetime.datetime.now()
             order.save()
+            send_notification_to_user(user, {"title": "Order Pending", "body": "Your order is pending."})
             return Response({"message": "Order is pending."}, status=status.HTTP_200_OK)
 
         return Response({"detail": "Invalid status."}, status=status.HTTP_400_BAD_REQUEST)
@@ -575,6 +607,10 @@ class TableDetailGetView(APIView):
         serializer = TableSerializer(table)
         return Response(serializer.data)
 
+    def delete(self, request, table_id):
+        table = get_object_or_404(Table, table_id=table_id)
+        table.delete()
+        return Response({"detail": "Table deleted successfully."}, status=status.HTTP_200_OK)
 
 class TableDetailView(APIView):
     def put(self, request, table_id):

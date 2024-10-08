@@ -73,3 +73,25 @@ class OTP(models.Model):
 
     def __str__(self):
         return f"OTP for {self.phone_number}: {self.otp} (Verified: {self.is_verified})"
+
+class WebPushInfo(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='webpush_info')
+    endpoint = models.TextField()
+    p256dh = models.CharField(max_length=255)
+    auth = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"WebPushInfo for {self.user.email}: {self.endpoint}"
+    
+class Group(models.Model):
+    name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.name
+
+class PushInformation(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='push_information')
+    subscription = models.ForeignKey(WebPushInfo, on_delete=models.CASCADE, related_name='push_information')
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='push_information')
+    def __str__(self):
+        return f"PushInformation for {self.user.email}: {self.group.name}"
