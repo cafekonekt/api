@@ -198,6 +198,11 @@ USE_I18N = True
 
 USE_TZ = True
 
+WEBPUSH_SETTINGS = {
+    "VAPID_PUBLIC_KEY": os.getenv('VAPID_PUBLIC_KEY'),
+    "VAPID_PRIVATE_KEY": os.getenv('VAPID_PRIVATE_KEY'),
+    "VAPID_ADMIN_EMAIL": os.getenv('VAPID_ADMIN_EMAIL'),
+}
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/

@@ -21,12 +21,16 @@ from shop.api.views import (
     AreaListCreateView,
     AreaDetailView,
     SocketSeller,
+    WebPushSubscriptionView,
+    TestNotificationView,
     DiscountCouponListCreateView,
 )
 from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
+    path('subscribe/', WebPushSubscriptionView.as_view(), name='subscription'),
+    path('test-notification/', TestNotificationView.as_view(), name='test-notification'),
     path('menu/<slug:menu_slug>/', FoodCategoryListCreateView.as_view(), name='food-category'),
 
     path('food-items/', FoodItemListCreateView.as_view(), name='food-item'),

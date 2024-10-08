@@ -1,5 +1,5 @@
 from django.contrib import admin
-from authentication.models import CustomUser, OTP
+from authentication.models import CustomUser, OTP, WebPushInfo, Group, PushInformation
 
 class CustomUserAdmin(admin.ModelAdmin):
     list_display = ('id', 'email', 'phone_number', 'role', 'is_active', 'is_staff', 'created_at', 'updated_at')
@@ -19,3 +19,6 @@ class CustomUserAdmin(admin.ModelAdmin):
 
 admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register(OTP)
+admin.site.register(WebPushInfo)
+admin.site.register(Group)
+admin.site.register(PushInformation)
