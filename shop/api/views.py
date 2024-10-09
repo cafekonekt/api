@@ -30,7 +30,6 @@ from shop.api.serializers import (
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.permissions import AllowAny
-from rest_framework.decorators import permission_classes
 from django.shortcuts import get_object_or_404
 from django.db import transaction, IntegrityError
 from channels.layers import get_channel_layer
@@ -39,7 +38,6 @@ from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
-from rest_framework.decorators import api_view
 
 from cashfree_pg.models.create_order_request import CreateOrderRequest
 from cashfree_pg.api_client import Cashfree
@@ -47,7 +45,10 @@ from cashfree_pg.models.customer_details import CustomerDetails
 from cashfree_pg.models.order_meta import OrderMeta
 
 from project.utils import send_notification_to_user
+from django.db.models import Count, Sum
+from django.utils import timezone
 
+from datetime import timedelta
 import datetime
 import json
 
@@ -72,9 +73,6 @@ class WebPushSubscriptionView(APIView):
         web_push_info.p256dh = subscription_data['keys']['p256dh']
         web_push_info.auth = subscription_data['keys']['auth']
         web_push_info.save()
-
-        payload = json.dumps({"title": "Test Notification", "body": "This is a test message."})
-        send_notification_to_user(user, payload)
         return Response({'message': 'Subscription saved successfully.'}, status=status.HTTP_201_CREATED)
 
 class TestNotificationView(APIView):
@@ -85,6 +83,67 @@ class TestNotificationView(APIView):
         send_notification_to_user(user, payload)
         return Response({'message': 'Notification sent.'}, status=status.HTTP_200_OK)
                         
+
+class DashboardDataAPIView(APIView):
+    def get(self, request, *args, **kwargs):
+        # Get the current date
+        today = timezone.now().date()
+        
+        # Calculate the start of today and last week
+        start_of_today = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_of_last_week = today - timedelta(days=7)
+        start_of_week_before_last = start_of_last_week - timedelta(days=7)
+
+        # Fetch today's total orders and revenue
+        todays_orders = Order.objects.filter(created_at__gte=start_of_today).count()
+        todays_revenue = Order.objects.filter(created_at__gte=start_of_today).aggregate(total=Sum('total'))['total'] or 0
+
+        # Fetch total orders last week (week before the current 7 days)
+        total_orders_last_week = Order.objects.filter(
+            created_at__date__gte=start_of_week_before_last,
+            created_at__date__lt=start_of_last_week
+        ).count()
+
+        # Calculate average revenue (total revenue divided by total number of days in the current 'orders' data)
+        total_revenue = Order.objects.aggregate(total=Sum('total'))['total'] or 0
+        total_days = Order.objects.values('created_at__date').distinct().count()
+        average_revenue = total_revenue / total_days if total_days else 0
+
+        # Fetch order counts and revenues grouped by date.
+        orders_data = (
+            Order.objects.values('created_at__date')
+            .annotate(orderCount=Count('order_id'))
+            .order_by('created_at__date')
+        )
+        
+        revenue_data = (
+            Order.objects.values('created_at__date')
+            .annotate(dailyRevenue=Sum('total'))
+            .order_by('created_at__date')
+        )
+
+        # Formatting data to match the required structure.
+        orders = [
+            {'date': order['created_at__date'].strftime('%Y-%m-%d'), 'orderCount': order['orderCount']}
+            for order in orders_data
+        ]
+        revenue = [
+            {'date': revenue['created_at__date'].strftime('%Y-%m-%d'), 'dailyRevenue': float(revenue['dailyRevenue'])}
+            for revenue in revenue_data
+        ]
+
+        # Structure data as expected in the frontend.
+        demoData = {
+            'orders': orders,
+            'revenue': revenue,
+            'todaysOrders': todays_orders,
+            'todaysRevenue': float(todays_revenue),
+            'totalOrdersLastWeek': total_orders_last_week,
+            'averageRevenue': float(average_revenue),
+        }
+        return Response(demoData, status=status.HTTP_200_OK)
+
+
 class FoodCategoryListCreateView(APIView):
     permission_classes = []
 
@@ -358,6 +417,23 @@ class CheckoutAPIView(APIView):
         order.payment_id = api_response.data.cf_order_id
         order.payment_session_id = api_response.data.payment_session_id
         order.save()
+        
+        # notify outlet owner
+        owner = menu.outlet.outlet_manager
+        payload = json.dumps({
+            "title": "New Order", 
+            "body": "You have received a new order.", 
+            "url": "/order"})
+        send_notification_to_user(owner, payload)
+        # Notify the shop owner via Django Channels
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'seller_{menu.menu_slug}',
+            {
+                'type': 'seller_notification',
+                'message': OrderSerializer(order).data
+            }
+        )
         # Return the payment session id to the client to initiate payment
         return Response({
             "order_id": api_response.data.order_id,
@@ -469,7 +545,7 @@ class LiveOrders(APIView):
         user = request.user
         outlet = Outlet.objects.filter(outlet_manager=user).first()
         # return all orders of current date categorised by status
-        orders = Order.objects.filter(outlet=outlet).order_by('-created_at')
+        orders = Order.objects.filter(outlet=outlet, created_at__date=datetime.datetime.now().date()).order_by('-created_at')
         serializer = OrderSerializer(orders, many=True)
         live_orders = {
             "new": [],
@@ -496,7 +572,11 @@ class LiveOrders(APIView):
             order.status = 'completed'
             order.updated_at = datetime.datetime.now()
             order.save()
-            send_notification_to_user(user, {"title": "Order Completed", "body": "Your order has been completed."})
+            payload = json.dumps({
+                "title": "Order Completed", 
+                "body": "Your order has been completed.", 
+                "url": f"/order/{order.order_id}"})
+            send_notification_to_user(order.user, payload)
             return Response({"message": "Order completed successfully."}, status=status.HTTP_200_OK)
 
         elif data['status'] == 'processing':
@@ -504,14 +584,17 @@ class LiveOrders(APIView):
             order.updated_at = datetime.datetime.now()
             order.prep_start_time = datetime.datetime.now()
             order.save()
-            send_notification_to_user(user, {"title": "Order Processing", "body": "Your order is being prepared."})
+            payload = json.dumps({
+                "title": "Order Processing", 
+                "body": "Your order is being prepared.", 
+                "url": f"/order/{order.order_id}"})
+            send_notification_to_user(order.user, payload)
             return Response({"message": "Order is being prepared."}, status=status.HTTP_200_OK)
 
         elif data['status'] == 'pending':
             order.status = 'pending'
             order.updated_at = datetime.datetime.now()
             order.save()
-            send_notification_to_user(user, {"title": "Order Pending", "body": "Your order is pending."})
             return Response({"message": "Order is pending."}, status=status.HTTP_200_OK)
 
         return Response({"detail": "Invalid status."}, status=status.HTTP_400_BAD_REQUEST)
@@ -611,6 +694,7 @@ class TableDetailGetView(APIView):
         table = get_object_or_404(Table, table_id=table_id)
         table.delete()
         return Response({"detail": "Table deleted successfully."}, status=status.HTTP_200_OK)
+
 
 class TableDetailView(APIView):
     def put(self, request, table_id):

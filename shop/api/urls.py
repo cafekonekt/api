@@ -24,6 +24,7 @@ from shop.api.views import (
     WebPushSubscriptionView,
     TestNotificationView,
     DiscountCouponListCreateView,
+    DashboardDataAPIView,
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -31,6 +32,8 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('subscribe/', WebPushSubscriptionView.as_view(), name='subscription'),
     path('test-notification/', TestNotificationView.as_view(), name='test-notification'),
+    path('dashboard/', DashboardDataAPIView.as_view(), name='dashboard'),
+    
     path('menu/<slug:menu_slug>/', FoodCategoryListCreateView.as_view(), name='food-category'),
 
     path('food-items/', FoodItemListCreateView.as_view(), name='food-item'),
