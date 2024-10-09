@@ -575,8 +575,8 @@ class LiveOrders(APIView):
             payload = json.dumps({
                 "title": "Order Completed", 
                 "body": "Your order has been completed.", 
-                "url": "/order"})
-            send_notification_to_user(user, payload)
+                "url": f"/order/{order.order_id}"})
+            send_notification_to_user(order.user, payload)
             return Response({"message": "Order completed successfully."}, status=status.HTTP_200_OK)
 
         elif data['status'] == 'processing':
@@ -587,8 +587,8 @@ class LiveOrders(APIView):
             payload = json.dumps({
                 "title": "Order Processing", 
                 "body": "Your order is being prepared.", 
-                "url": "/order"})
-            send_notification_to_user(user, payload)
+                "url": f"/order/{order.order_id}"})
+            send_notification_to_user(order.user, payload)
             return Response({"message": "Order is being prepared."}, status=status.HTTP_200_OK)
 
         elif data['status'] == 'pending':
