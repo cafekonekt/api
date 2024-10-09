@@ -312,11 +312,6 @@ class Order(models.Model):
         ('terminated', 'Terminated'),
         ('termination_requested', 'Termination Requested')
     ]
-    TRANSCATION_STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('success', 'Success'),
-        ('failed', 'Failed')
-    ]
     PAYMENT_METHOD_CHOICES = [
         ('online', 'Online'),
         ('credit_card', 'Credit Card'),

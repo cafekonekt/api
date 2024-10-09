@@ -370,6 +370,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'total',
             'status',
             'payment_status',
+            'payment_method',
             'created_at',
             'updated_at']
 
@@ -392,7 +393,7 @@ class OrderSerializer(serializers.ModelSerializer):
             {
                 "stage": "Preparing Food",
                 "status": "pending" if obj.payment_status == "failed" else "inactive",
-                "content": "",
+                "content": obj.prep_start_time,
             },
             {
                 "stage": "Served",
