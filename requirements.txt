@@ -13,3 +13,4 @@ cashfree-pg==4.2.4
 requests==2.32.3
 django-ratelimit==4.1.0
 pywebpush==2.0.0
+django-import-export==4.1.1
