@@ -86,6 +86,9 @@ class TestNotificationView(APIView):
 
 class DashboardDataAPIView(APIView):
     def get(self, request, *args, **kwargs):
+        # Get the current user
+        user = request.user
+
         # Get the current date
         today = timezone.now().date()
         
@@ -94,30 +97,49 @@ class DashboardDataAPIView(APIView):
         start_of_last_week = today - timedelta(days=7)
         start_of_week_before_last = start_of_last_week - timedelta(days=7)
 
-        # Fetch today's total orders and revenue
-        todays_orders = Order.objects.filter(created_at__gte=start_of_today).count()
-        todays_revenue = Order.objects.filter(created_at__gte=start_of_today).aggregate(total=Sum('total'))['total'] or 0
+        # Filter orders to include only those from the user's outlet(s)
+        user_outlet_ids = Outlet.objects.filter(outlet_manager=user).values_list('id', flat=True)
+
+        # Fetch today's total orders and revenue for the user's outlet(s)
+        todays_orders = Order.objects.filter(
+            outlet_id__in=user_outlet_ids,
+            created_at__gte=start_of_today
+        ).count()
+
+        todays_revenue = Order.objects.filter(
+            outlet_id__in=user_outlet_ids,
+            created_at__gte=start_of_today
+        ).aggregate(total=Sum('total'))['total'] or 0
 
         # Fetch total orders last week (week before the current 7 days)
         total_orders_last_week = Order.objects.filter(
+            outlet_id__in=user_outlet_ids,
             created_at__date__gte=start_of_week_before_last,
             created_at__date__lt=start_of_last_week
         ).count()
 
         # Calculate average revenue (total revenue divided by total number of days in the current 'orders' data)
-        total_revenue = Order.objects.aggregate(total=Sum('total'))['total'] or 0
-        total_days = Order.objects.values('created_at__date').distinct().count()
+        total_revenue = Order.objects.filter(
+            outlet_id__in=user_outlet_ids
+        ).aggregate(total=Sum('total'))['total'] or 0
+
+        total_days = Order.objects.filter(
+            outlet_id__in=user_outlet_ids
+        ).values('created_at__date').distinct().count()
+        
         average_revenue = total_revenue / total_days if total_days else 0
 
-        # Fetch order counts and revenues grouped by date.
+        # Fetch order counts and revenues grouped by date for the user's outlet(s)
         orders_data = (
-            Order.objects.values('created_at__date')
+            Order.objects.filter(outlet_id__in=user_outlet_ids)
+            .values('created_at__date')
             .annotate(orderCount=Count('order_id'))
             .order_by('created_at__date')
         )
         
         revenue_data = (
-            Order.objects.values('created_at__date')
+            Order.objects.filter(outlet_id__in=user_outlet_ids)
+            .values('created_at__date')
             .annotate(dailyRevenue=Sum('total'))
             .order_by('created_at__date')
         )
@@ -137,12 +159,11 @@ class DashboardDataAPIView(APIView):
             'orders': orders,
             'revenue': revenue,
             'todaysOrders': todays_orders,
-            'todaysRevenue': float(todays_revenue),
+            'todaysRevenue': round(float(todays_revenue), 2),
             'totalOrdersLastWeek': total_orders_last_week,
-            'averageRevenue': float(average_revenue),
+            'averageRevenue': round(float(average_revenue), 2),
         }
         return Response(demoData, status=status.HTTP_200_OK)
-
 
 class FoodCategoryListCreateView(APIView):
     permission_classes = []
