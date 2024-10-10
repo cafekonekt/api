@@ -120,7 +120,7 @@ class Addon(models.Model):
     description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    item_variant = models.ManyToManyField("ItemVariant", related_name='addons', blank=True, null=True)
+    item_variant = models.ManyToManyField("ItemVariant", related_name='addons')
     
 
     def __str__(self):
@@ -195,7 +195,7 @@ class FoodItem(models.Model):
     featured = models.BooleanField(default=False)
     in_stock = models.BooleanField(default=True)
     addons = models.ManyToManyField(Addon, related_name='food_items', blank=True)
-    variant = models.ManyToManyField(VariantCategory, related_name='food_items', blank=True, null=True)
+    variant = models.ManyToManyField(VariantCategory, related_name='food_items')
     tags = models.ManyToManyField('FoodTag', related_name='food_items', blank=True)
     
     prepration_time = models.PositiveIntegerField(default=30)
