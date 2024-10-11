@@ -433,6 +433,15 @@ class CheckoutAPIView(APIView):
                     'message': order_data
                 }
             )
+
+            # notify outlet owner
+            owner = menu.outlet.outlet_manager
+            payload = json.dumps({
+                "title": "New Order", 
+                "body": "You have received a new order.", 
+                "url": "https://seller.tacoza.co/orders"})
+            send_notification_to_user(owner, payload)
+
             return Response({
                 "order_id": order.order_id,
                 "payment_session_id": None
@@ -463,14 +472,6 @@ class CheckoutAPIView(APIView):
         order.payment_id = api_response.data.cf_order_id
         order.payment_session_id = api_response.data.payment_session_id
         order.save()
-        
-        # notify outlet owner
-        owner = menu.outlet.outlet_manager
-        payload = json.dumps({
-            "title": "New Order", 
-            "body": "You have received a new order.", 
-            "url": "https://seller.tacoza.co/orders"})
-        send_notification_to_user(owner, payload)
 
         # Create or update the OrderTimelineItem for "Payment Initiated"
         timeline_item, created = OrderTimelineItem.objects.get_or_create(
@@ -560,6 +561,14 @@ class CashfreeWebhookView(APIView):
                     'message': order_data
                 }
             )
+
+            # notify outlet owner
+            owner = menu.outlet.outlet_manager
+            payload = json.dumps({
+                "title": "New Order", 
+                "body": "You have received a new order.", 
+                "url": "https://seller.tacoza.co/orders"})
+            send_notification_to_user(owner, payload)
 
         return JsonResponse({"status": "success"})
 
