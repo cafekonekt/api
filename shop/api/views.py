@@ -647,7 +647,7 @@ class OrderDetailAPIView(APIView):
         order.payment_status = payment_status
         order.save()
 
-        if status == 'success':
+        if payment_status == 'success':
             # Create or update the OrderTimelineItem for "Payment Success"
             timeline_item, created = OrderTimelineItem.objects.get_or_create(
                 order=order,
