@@ -15,6 +15,7 @@ from shop.models import (
     Table,
     Order,
     TableArea,
+    OrderTimelineItem,
     DiscountCoupon)
 from shop.api.serializers import (
     FoodCategorySerializer,
@@ -347,7 +348,6 @@ class CartView(APIView):
         serializer = CartItemSerializer(cart.items.all(), many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
 class CheckoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -394,6 +394,19 @@ class CheckoutAPIView(APIView):
         order_serializer.is_valid(raise_exception=True)
         order = Order.objects.create(**order_data)
 
+         # Create or update the OrderTimelineItem for "Order Placed"
+        timeline_item, created = OrderTimelineItem.objects.get_or_create(
+            order=order,
+            stage="Order Placed",
+            defaults={
+                'content': "Order has been placed successfully.",
+                'done': True
+            }
+        )
+        if not created:
+            timeline_item.updated_at = timezone.now()
+            timeline_item.save()
+
         # Create OrderItems from CartItems
         for cart_item in cart_items:
             order_item = OrderItem(
@@ -409,10 +422,22 @@ class CheckoutAPIView(APIView):
         cart.delete()
 
         if payment_method == 'cash':
+            menu = Menu.objects.get(outlet=order.outlet)
+            channel_layer = get_channel_layer()
+            order_data = OrderSerializer(order).data
+
+            async_to_sync(channel_layer.group_send)(
+                f'seller_{menu.menu_slug}',
+                {
+                    'type': 'seller_notification',
+                    'message': order_data
+                }
+            )
             return Response({
                 "order_id": order.order_id,
                 "payment_session_id": None
             }, status=status.HTTP_201_CREATED)
+
 
         customer_details = CustomerDetails(
                     customer_id=user.get_user_id(),
@@ -444,17 +469,22 @@ class CheckoutAPIView(APIView):
         payload = json.dumps({
             "title": "New Order", 
             "body": "You have received a new order.", 
-            "url": "/order"})
+            "url": "https://seller.tacoza.co/orders"})
         send_notification_to_user(owner, payload)
-        # Notify the shop owner via Django Channels
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f'seller_{menu.menu_slug}',
-            {
-                'type': 'seller_notification',
-                'message': OrderSerializer(order).data
+
+        # Create or update the OrderTimelineItem for "Payment Initiated"
+        timeline_item, created = OrderTimelineItem.objects.get_or_create(
+            order=order,
+            stage="Payment Initiated",
+            defaults={
+                'content': "Payment has been initiated.",
+                'done': True
             }
         )
+        if not created:
+            timeline_item.updated_at = timezone.now()
+            timeline_item.save()
+
         # Return the payment session id to the client to initiate payment
         return Response({
             "order_id": api_response.data.order_id,
@@ -467,7 +497,7 @@ class CheckoutAPIView(APIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class CashfreeWebhookView(APIView):
-    permission_classes = [AllowAny]  # Allow webhook to be accessed without authentication
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         decoded_body = request.body.decode('utf-8')
@@ -475,49 +505,63 @@ class CashfreeWebhookView(APIView):
         signature = request.headers.get('x-webhook-signature')
 
         # try:
-        # Verify the signature using Cashfree SDK
         cashfree = Cashfree()
         cashfree.PGVerifyWebhookSignature(signature, decoded_body, timestamp)
 
-        # Get raw request data
         body = request.data
-        # Process payment data
         order_id = body['data']['order']['order_id']
         transaction_status = body['data']['payment']['payment_status']
 
-        # Handle payment success
+        order = get_object_or_404(Order, order_id=order_id)
+        stage = ""
+        content = ""
+
+        # Handle payment status
         if transaction_status == "SUCCESS":
-            # Update order status to 'paid'
-            order = Order.objects.get(order_id=order_id)
             order.payment_status = 'success'
             order.payment_method = body['data']['payment']['payment_group']
-            order.save()
-            
-            menu = Menu.objects.get(outlet=order.outlet)
+            stage = "Payment Success"
+            content = "Payment has been completed successfully."
+        elif transaction_status == "PENDING":
+            order.payment_status = 'pending'
+            stage = "Payment Pending"
+            content = "Payment is pending."
+        else:
+            order.payment_status = 'failed'
+            stage = "Payment Failed"
+            content = "Payment has failed."
 
-            # Notify the shop owner via Django Channels
+        order.save()
+
+        # Create or update the OrderTimelineItem for the payment status
+        timeline_item, created = OrderTimelineItem.objects.get_or_create(
+            order=order,
+            stage=stage,
+            defaults={
+                'content': content,
+                'done': True
+            }
+        )
+        if not created:
+            timeline_item.content = content
+            timeline_item.updated_at = timezone.now()
+            timeline_item.save()
+
+        # Notify the shop owner if payment was successful
+        if transaction_status == "SUCCESS":
+            menu = Menu.objects.get(outlet=order.outlet)
             channel_layer = get_channel_layer()
+            order_data = OrderSerializer(order).data
+
             async_to_sync(channel_layer.group_send)(
                 f'seller_{menu.menu_slug}',
                 {
                     'type': 'seller_notification',
-                    'message': OrderSerializer(order).data
+                    'message': order_data
                 }
             )
-        elif transaction_status == "PENDING":
-            order = Order.objects.get(order_id=order_id)
-            order.payment_status = 'pending'
-            order.save()
-        else:
-            order = Order.objects.get(order_id=order_id)
-            order.payment_status = 'failed'
-            order.save()
 
         return JsonResponse({"status": "success"})
-
-        # except Exception as e:
-        #     print(e, 'error')
-        #     return JsonResponse({"error": str(e)}, status=400)
 
 
 class PaymentStatusAPIView(APIView):
@@ -535,15 +579,18 @@ class PaymentStatusAPIView(APIView):
 class OrderList(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, menu_slug=None, order_id=None):
+    def get(self, request):
         user = request.user
         if user.role == 'owner':
             outlet = Outlet.objects.filter(outlet_manager=user).first()
             orders = Order.objects.filter(outlet=outlet).order_by('-created_at')
+            orders = orders.order_by('-created_at')
         else:
             orders = Order.objects.filter(user=user).order_by('-created_at')
+        
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data)
+
 
 
 class OrderDetailAPIView(APIView):
@@ -559,20 +606,88 @@ class OrderDetailAPIView(APIView):
         serializer = OrderSerializer(order)
         return Response(serializer.data)
 
+    # to update payment status
+    def put(self, request, order_id):
+        user = request.user
+        order = get_object_or_404(Order, order_id=order_id)
+        if order.outlet.outlet_manager != user:
+            return Response({"detail": "You are not authorized to update this order."}, status=status.HTTP_403_FORBIDDEN)
+        
+        data = request.data
+        payment_status = data.get('status')
+        if payment_status not in ['success', 'pending', 'cancelled']:
+            return Response({"detail": "Invalid status."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if payment_status == 'cancelled':
+            order.status = 'cancelled'
+            order.save()
+
+            # Create or update the OrderTimelineItem for "Order Cancelled"
+            timeline_item, created = OrderTimelineItem.objects.get_or_create(
+                order=order,
+                stage="Order Cancelled",
+                defaults={
+                    'content': "Order has been cancelled.",
+                    'done': True
+                }
+            )
+            if not created:
+                timeline_item.updated_at = timezone.now()
+                timeline_item.save()
+            
+            # Notify the user
+            payload = json.dumps({
+                "title": "Order Cancelled",
+                "body": "Your order has been cancelled.",
+                "url": f"https://app.tacoza.co/order/{order.order_id}"
+            })
+            send_notification_to_user(order.user, payload)
+            return Response({"message": "Order cancelled successfully."}, status=status.HTTP_200_OK)
+
+        order.payment_status = payment_status
+        order.save()
+
+        if status == 'success':
+            # Create or update the OrderTimelineItem for "Payment Success"
+            timeline_item, created = OrderTimelineItem.objects.get_or_create(
+                order=order,
+                stage="Payment Success",
+                defaults={
+                    'content': "Payment recived.",
+                    'done': True
+                }
+            )
+            if not created:
+                timeline_item.updated_at = timezone.now()
+                timeline_item.save()
+        return Response({"message": "Payment status updated successfully."}, status=status.HTTP_200_OK)
+
 
 class LiveOrders(APIView):
     permission_classes = [IsAuthenticated]
+
     def get(self, request):
         user = request.user
         outlet = Outlet.objects.filter(outlet_manager=user).first()
-        # return all orders of current date categorised by status
-        orders = Order.objects.filter(outlet=outlet, created_at__date=datetime.datetime.now().date()).order_by('-created_at')
+
+        # return all orders of current date categorized by status, with payment_status 'success' or payment_method 'cash'
+        orders = Order.objects.filter(
+            outlet=outlet,
+            created_at__date=datetime.datetime.now().date(),
+            payment_status='success'  # Payment status condition
+        ) | Order.objects.filter(
+            outlet=outlet,
+            created_at__date=datetime.datetime.now().date(),
+            payment_method='cash'  # Payment method condition
+        ).order_by('-created_at')
+
         serializer = OrderSerializer(orders, many=True)
         live_orders = {
             "new": [],
             "preparing": [],
             "completed": []
         }
+
         for order in serializer.data:
             if order['status'] == 'pending':
                 live_orders['new'].append(order)
@@ -580,45 +695,69 @@ class LiveOrders(APIView):
                 live_orders['preparing'].append(order)
             elif order['status'] == 'completed':
                 live_orders['completed'].append(order)
+
         return Response(live_orders, status=status.HTTP_200_OK)
+
 
     def put(self, request, order_id):
         user = request.user
         order = get_object_or_404(Order, order_id=order_id)
         if order.outlet.outlet_manager != user:
             return Response({"detail": "You are not authorized to update this order."}, status=status.HTTP_403_FORBIDDEN)
+        
         data = request.data
+        status_map = {
+            'completed': 'Order Completed',
+            'processing': 'Order Processing',
+            'pending': 'Order Placed'
+        }
 
-        if data['status'] == 'completed':
-            order.status = 'completed'
-            order.updated_at = datetime.datetime.now()
-            order.save()
-            payload = json.dumps({
-                "title": "Order Completed", 
-                "body": "Your order has been completed.", 
-                "url": f"/order/{order.order_id}"})
-            send_notification_to_user(order.user, payload)
-            return Response({"message": "Order completed successfully."}, status=status.HTTP_200_OK)
+        new_status = data.get('status')
+        if new_status not in status_map:
+            return Response({"detail": "Invalid status."}, status=status.HTTP_400_BAD_REQUEST)
 
-        elif data['status'] == 'processing':
-            order.status = 'processing'
-            order.updated_at = datetime.datetime.now()
-            order.prep_start_time = datetime.datetime.now()
-            order.save()
-            payload = json.dumps({
-                "title": "Order Processing", 
-                "body": "Your order is being prepared.", 
-                "url": f"/order/{order.order_id}"})
-            send_notification_to_user(order.user, payload)
-            return Response({"message": "Order is being prepared."}, status=status.HTTP_200_OK)
+        # Update the order status and timestamps
+        order.status = new_status
+        order.updated_at = timezone.now()
+        
+        order.save()
 
-        elif data['status'] == 'pending':
-            order.status = 'pending'
-            order.updated_at = datetime.datetime.now()
-            order.save()
-            return Response({"message": "Order is pending."}, status=status.HTTP_200_OK)
+        # Define the corresponding stage and content
+        stage = status_map[new_status]
+        content = {
+            'completed': "Order has been completed.",
+            'processing': "Order is being prepared.",
+            'pending': "Order has been placed successfully."
+        }[new_status]
 
-        return Response({"detail": "Invalid status."}, status=status.HTTP_400_BAD_REQUEST)
+        # Check if an OrderTimelineItem with the same stage already exists
+        timeline_item, created = OrderTimelineItem.objects.get_or_create(
+            order=order,
+            stage=stage,
+            defaults={
+                'content': content,
+                'done': True
+            }
+        )
+
+        # If the timeline item already exists, update its timestamp and content if needed
+        if not created:
+            timeline_item.content = content
+            timeline_item.updated_at = timezone.now()
+            timeline_item.save()
+
+        # Prepare the notification payload
+        payload = json.dumps({
+            "title": stage,
+            "body": content,
+            "url": f"https://app.tacoza.co/order/{order.order_id}"
+        })
+        
+        # Send a notification to the user
+        send_notification_to_user(order.user, payload)
+
+        # Return a success response
+        return Response({"message": f"Order {new_status} successfully."}, status=status.HTTP_200_OK)
 
 
 class OutletListView(APIView):

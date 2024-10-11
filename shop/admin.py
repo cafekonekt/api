@@ -19,6 +19,7 @@ from shop.models import (
     Cart,
     CartItem,
     DiscountCoupon,
+    OrderTimelineItem,
 )
 from import_export import resources
 from import_export.admin import ImportExportModelAdmin
@@ -101,3 +102,4 @@ admin.site.register(OrderItem)
 admin.site.register(Cart)
 admin.site.register(CartItem)
 admin.site.register(DiscountCoupon)
+admin.site.register(OrderTimelineItem)
