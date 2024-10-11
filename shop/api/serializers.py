@@ -12,6 +12,7 @@ from shop.models import (
     ItemVariant,
     Variant,
     VariantCategory,
+    OrderTimelineItem,
     CartItem,
     Order,
     OrderItem,
@@ -343,9 +344,10 @@ class OrderItemSerializer(serializers.ModelSerializer):
         return obj.get_total_price()
 
 class OrderTimelineSerializer(serializers.Serializer):
-    stage = serializers.CharField()
-    status = serializers.CharField()
-    content = serializers.CharField()
+    class Meta:
+        model = OrderTimelineItem
+        ordering = ['created_at']
+        fields = ['stage', 'done', 'content', 'created_at']
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True)
@@ -354,6 +356,9 @@ class OrderSerializer(serializers.ModelSerializer):
     total = serializers.SerializerMethodField()
     outlet = OutletSerializer()
     order_timeline = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
+    updated_at = serializers.SerializerMethodField()
+    avg_preparation_time = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -371,37 +376,32 @@ class OrderSerializer(serializers.ModelSerializer):
             'status',
             'payment_status',
             'payment_method',
+            'avg_preparation_time',
             'created_at',
-            'updated_at']
+            'updated_at'
+        ]
 
     def get_total(self, obj):
         return float(obj.total)
 
     def get_order_timeline(self, obj):
         """Return the order timeline."""
-        timeline = [
-            {
-                "stage": "Order Placed",
-                "status": "done",
-                "content": obj.created_at,
-            },
-            {
-                "stage": "Payment",
-                "status": "pending",
-                "content": obj.payment_status,
-            },
-            {
-                "stage": "Preparing Food",
-                "status": "pending" if obj.payment_status == "failed" else "inactive",
-                "content": obj.prep_start_time,
-            },
-            {
-                "stage": "Served",
-                "status": "pending" if obj.payment_status == "failed" else "inactive",
-                "content": "",
-            },
-        ]
-        return OrderTimelineSerializer(timeline, many=True).data
+        order_timelines = OrderTimelineItem.objects.filter(order=obj)
+        return [{
+            "stage": order_timeline.stage,
+            "done": order_timeline.done,
+            "content": order_timeline.content,
+            "created_at": order_timeline.created_at.isoformat()  # Convert to ISO 8601 string
+        } for order_timeline in order_timelines]
+
+    def get_created_at(self, obj):
+        """Return the created_at as an ISO 8601 string."""
+        return obj.created_at.isoformat() if obj.created_at else None
+
+    def get_updated_at(self, obj):
+        """Return the updated_at as an ISO 8601 string."""
+        return obj.updated_at.isoformat() if obj.updated_at else None
+
     def get_user(self, obj):
         """Return the user name."""
         return obj.user.name
@@ -409,6 +409,11 @@ class OrderSerializer(serializers.ModelSerializer):
     def get_table(self, obj):
         """Return the table name."""
         return obj.table.name if obj.table else None
+    
+    def get_avg_preparation_time(self, obj):
+        """Return the average preparation time of the order."""
+        return obj.outlet.average_preparation_time
+
 
 class CheckoutSerializer(serializers.Serializer):
     class Meta:
