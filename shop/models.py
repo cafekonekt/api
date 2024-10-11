@@ -342,7 +342,6 @@ class Order(models.Model):
     payment_method = models.CharField(max_length=100, choices=PAYMENT_METHOD_CHOICES, default='online')
     
     created_at = models.DateTimeField(auto_now_add=True)
-    prep_start_time = models.DateTimeField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
@@ -379,6 +378,20 @@ class OrderItem(models.Model):
         for addon in self.addons.all():
             price += addon.price
         return float(price * self.quantity)
+
+class OrderTimelineItem(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='timeline')
+    stage = models.CharField(max_length=100)
+    done = models.BooleanField(default=False)
+    content = models.TextField(blank=True, null=True)    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.order.order_id} - {self.stage}"
+
+    class Meta:
+        ordering = ['created_at']
 
 class Table(models.Model):
     table_id = models.CharField(max_length=100, unique=True, default=uuid.uuid4)
