@@ -76,6 +76,7 @@ class WebPushSubscriptionView(APIView):
         web_push_info.save()
         return Response({'message': 'Subscription saved successfully.'}, status=status.HTTP_201_CREATED)
 
+
 class TestNotificationView(APIView):
     permission_classes = []
     def post(self, request):
@@ -165,6 +166,7 @@ class DashboardDataAPIView(APIView):
             'averageRevenue': round(float(average_revenue), 2),
         }
         return Response(demoData, status=status.HTTP_200_OK)
+
 
 class FoodCategoryListCreateView(APIView):
     permission_classes = []
@@ -347,6 +349,7 @@ class CartView(APIView):
         # Return all the cart items
         serializer = CartItemSerializer(cart.items.all(), many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class CheckoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -601,7 +604,6 @@ class OrderList(APIView):
         return Response(serializer.data)
 
 
-
 class OrderDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -776,6 +778,14 @@ class OutletListView(APIView):
         menu = get_object_or_404(Menu, menu_slug=menu_slug)
         outlet = menu.outlet
         serializer = OutletSerializer(outlet)
+        return Response(serializer.data)
+
+class OutletsListAPIView(APIView):
+    permission_classes = []
+
+    def get(self, request):
+        outlets = Outlet.objects.all()
+        serializer = OutletSerializer(outlets, many=True)
         return Response(serializer.data)
 
 

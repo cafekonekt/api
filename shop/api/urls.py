@@ -25,6 +25,7 @@ from shop.api.views import (
     TestNotificationView,
     DiscountCouponListCreateView,
     DashboardDataAPIView,
+    OutletsListAPIView,
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -54,6 +55,7 @@ urlpatterns = [
     path('live-orders/<slug:order_id>/', LiveOrders.as_view(), name='live-orders-detail'),
     path('order/<slug:order_id>/', OrderDetailAPIView.as_view(), name='orders'),
 
+    path('list-outlets/', OutletsListAPIView.as_view(), name='outlet'),
     path('outlet/<slug:menu_slug>', OutletListView.as_view(), name='outlet'),
     path('outlet/', OutletListCreateView.as_view(), name='outlet'),
     path('outlet/<int:pk>/', OutletDetailView.as_view(), name='outlet-detail'),
