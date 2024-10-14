@@ -285,11 +285,12 @@ class OutletSerializer(serializers.ModelSerializer):
         child=serializers.ChoiceField(choices=[choice[0] for choice in PAYMENT_CHOICES])
     )
     gallery = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
     menu_slug = serializers.SerializerMethodField()
 
     class Meta:
         model = Outlet
-        fields = ['id', 'name', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'type', 'payment_methods', 'slug']
+        fields = ['id', 'name', 'rating', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'type', 'payment_methods', 'slug']
         depth = 2
 
     def get_menu_slug(self, obj):
@@ -316,6 +317,9 @@ class OutletSerializer(serializers.ModelSerializer):
         representation['payment_methods'] = instance.payment_methods.split(',')
         return representation
     
+    def get_rating(self, obj):
+        """Return the average rating of the outlet."""
+        return 4.5
 
     def to_internal_value(self, data):
         """Convert the list of services to a comma-separated string before saving."""
