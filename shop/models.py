@@ -195,7 +195,7 @@ class FoodItem(models.Model):
     featured = models.BooleanField(default=False)
     in_stock = models.BooleanField(default=True)
     addons = models.ManyToManyField(Addon, related_name='food_items', blank=True)
-    variant = models.ManyToManyField(VariantCategory, related_name='food_items')
+    variant = models.ManyToManyField(VariantCategory, related_name='food_items', blank=True)
     tags = models.ManyToManyField('FoodTag', related_name='food_items', blank=True)
     
     prepration_time = models.PositiveIntegerField(default=30)
@@ -433,7 +433,12 @@ class TableArea(models.Model):
 class DiscountCoupon(models.Model):
     DISCOUNT_TYPE_CHOICES = [
         ('percentage', 'Percentage'),
-        ('flat', 'Flat')
+        ('flat', 'Flat'),
+    ]
+    APPLICATION_TYPE_CHOICES = [
+        ('alluser', 'All User'),
+        ('new', 'New User'),
+        ('second', 'Second Order'),
     ]
     coupon_code = models.CharField(max_length=100, unique=True)
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE, null=True, blank=True)
@@ -448,6 +453,7 @@ class DiscountCoupon(models.Model):
     use_limit_per_user = models.PositiveIntegerField(default=1)
 
     products = models.ManyToManyField(FoodItem, related_name='coupons', blank=True)
+    application_type = models.CharField(max_length=10, choices=APPLICATION_TYPE_CHOICES, default='alluser')
 
     valid_from = models.DateField()
     valid_to = models.DateField()
@@ -457,5 +463,57 @@ class DiscountCoupon(models.Model):
     def __str__(self):
         return self.coupon_code
     
+    def is_applicable(self, user, cart):
+        if self.valid_from > timezone.now().date() or self.valid_to < timezone.now().date():
+            return False
+
+        # Check if use limit has been reached
+        total_usage = self.usages.count()
+        if total_usage >= self.use_limit:
+            return False
+
+        # Check user-specific usage
+        user_usage = self.usages.filter(user=user).count()
+        if user_usage >= self.use_limit_per_user:
+            return False
+
+        # Check application type
+        if self.application_type == 'new' and Order.objects.filter(user=user).exists():
+            return False
+        if self.application_type == 'second' and Order.objects.filter(user=user).count() < 1:
+            return False
+
+        # Check minimum and maximum order value
+        cart_total = sum([item.get_total_price() for item in cart.items.all()])
+        if cart_total < self.minimum_order_value or (self.max_order_value > 0 and cart_total > self.max_order_value):
+            return False
+
+        # If the coupon is specific to certain products
+        if self.products.exists():
+            cart_food_item_ids = cart.items.values_list('food_item_id', flat=True)
+            if not any(food_item_id in self.products.values_list('id', flat=True) for food_item_id in cart_food_item_ids):
+                return False
+
+        return True
+
     class Meta:
         ordering = ['created_at']
+
+class ItemRelation(models.Model):
+    RELATION_TYPE_CHOICES = [
+        ('frequently_bought_together', 'Frequently Bought Together'),
+        ('similar_items', 'Similar Items'),
+        ('complementary_items', 'Complementary Items'),
+        ('substitute_items', 'Substitute Items'),
+        ('popular_items', 'Popular Items'),
+    ]
+    item1 = models.ForeignKey(FoodItem, on_delete=models.CASCADE, related_name='related_item1')
+    item2 = models.ForeignKey(FoodItem, on_delete=models.CASCADE, related_name='related_item2')
+    score = models.FloatField(default=0)
+    interaction_count = models.PositiveIntegerField(default=0)  # Number of times the pair was bought together
+    relation_type = models.CharField(max_length=50, default='frequently_bought_together', choices=RELATION_TYPE_CHOICES)
+    last_computed = models.DateTimeField(null=True, blank=True)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('item1', 'item2')

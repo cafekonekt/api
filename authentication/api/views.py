@@ -136,3 +136,17 @@ class UpdateUserView(APIView):
             return response
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+class GetUserView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        response = JsonResponse({
+            'user': {
+                'email': user.email,
+                'phone_number': user.phone_number,
+                'name': user.name,
+                'age': user.age,
+            }
+        }, status=status.HTTP_200_OK)
+        return response
