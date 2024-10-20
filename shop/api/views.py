@@ -16,7 +16,7 @@ from shop.models import (
     Order,
     TableArea,
     OrderTimelineItem,
-    DiscountCoupon)
+    DiscountCoupon,)
 from shop.api.serializers import (
     FoodCategorySerializer,
     OutletSerializer,
@@ -27,7 +27,8 @@ from shop.api.serializers import (
     TableSerializer,
     AreaSerializer,
     AddonCategorySerializer,
-    DiscountCouponDetailSerializer)
+    DiscountCouponDetailSerializer,
+    DiscountCouponSerializer,)
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.permissions import AllowAny
@@ -955,3 +956,33 @@ class DiscountCouponListCreateView(APIView):
         coupons = DiscountCoupon.objects.all()
         serializer = DiscountCouponDetailSerializer(coupons, many=True)
         return Response(serializer.data)
+
+
+
+class ApplicableOffersAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        cart = Cart.objects.get(user=user)  # Assuming a user can only have one active cart
+
+        # Get all active discount coupons that haven't expired and haven't reached their use limit.
+        coupons = DiscountCoupon.objects.filter(
+            valid_from__lte=timezone.now().date(),
+            valid_to__gte=timezone.now().date()
+        ).exclude(
+            usages__count__gte=models.F('use_limit')
+        ).distinct()
+
+        # Create the serializer with context data
+        serializer = DiscountCouponSerializer(coupons, many=True, context={'user': user, 'cart': cart})
+        serialized_data = serializer.data
+
+        # Filter to find the best offer based on applicability and discount value
+        applicable_offers = [offer for offer in serialized_data if offer['is_applicable']]
+        best_offer = max(applicable_offers, key=lambda x: x['discount_value'], default=None)
+
+        return Response({
+            'offers': serialized_data,
+            'best_offer': best_offer
+        })

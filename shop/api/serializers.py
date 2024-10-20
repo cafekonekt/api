@@ -418,7 +418,6 @@ class OrderSerializer(serializers.ModelSerializer):
         """Return the average preparation time of the order."""
         return obj.outlet.average_preparation_time
 
-
 class CheckoutSerializer(serializers.Serializer):
     class Meta:
         model = Order
@@ -472,3 +471,23 @@ class DiscountCouponDetailSerializer(serializers.ModelSerializer):
         """Calculate if the coupon is active."""
         today = timezone.now().date()
         return obj.valid_from <= today <= obj.valid_to
+
+class DiscountCouponSerializer(serializers.ModelSerializer):
+    is_applicable = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DiscountCoupon
+        fields = [
+            'coupon_code',
+            'discount_type',
+            'discount_value',
+            'minimum_order_value',
+            'max_order_value',
+            'application_type',
+            'is_applicable',
+        ]
+
+    def get_is_applicable(self, obj):
+        user = self.context['user']
+        cart = self.context['cart']
+        return obj.is_applicable(user, cart)

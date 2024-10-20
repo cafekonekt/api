@@ -20,6 +20,7 @@ from shop.models import (
     CartItem,
     DiscountCoupon,
     OrderTimelineItem,
+    ItemRelation,
 )
 from import_export import resources
 from import_export.admin import ImportExportModelAdmin
@@ -30,6 +31,7 @@ class FoodItemResource(resources.ModelResource):
         model = FoodItem
 
 class FoodItemAdmin(ImportExportModelAdmin):
+    list_display = ('id', 'name', 'food_category', 'menu', 'price')
     resource_class = FoodItemResource
 ###################
 class FoodCategoryResource(resources.ModelResource):
@@ -37,6 +39,7 @@ class FoodCategoryResource(resources.ModelResource):
         model = FoodCategory
 
 class FoodCategoryAdmin(ImportExportModelAdmin):
+    list_display = ('id', 'name', 'menu')
     resource_class = FoodCategoryResource
 ###################
 class SubCategoryResource(resources.ModelResource):
@@ -81,7 +84,14 @@ class AddonCategoryResource(resources.ModelResource):
 
 class AddonCategoryAdmin(ImportExportModelAdmin):
     resource_class = AddonCategoryResource
-
+###################
+class ItemRelationAdmin(admin.ModelAdmin):
+    # Add the search fields to enable searching by item1's or item2's name.
+    search_fields = ['item1__name', 'item2__name']
+    list_display = ('item1', 'item2', 'score', 'relation_type', 'interaction_count', 'last_updated')
+    list_filter = ('relation_type',)
+    ordering = ('-score',)
+###################
 
 admin.site.register(Shop)
 admin.site.register(Outlet)
@@ -103,3 +113,4 @@ admin.site.register(Cart)
 admin.site.register(CartItem)
 admin.site.register(DiscountCoupon)
 admin.site.register(OrderTimelineItem)
+admin.site.register(ItemRelation, ItemRelationAdmin)
