@@ -120,7 +120,7 @@ class Addon(models.Model):
     description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    item_variant = models.ManyToManyField("ItemVariant", related_name='addons')
+    item_variant = models.ManyToManyField("ItemVariant", related_name='addons', blank=True)
     
 
     def __str__(self):
