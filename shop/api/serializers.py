@@ -290,7 +290,7 @@ class OutletSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Outlet
-        fields = ['id', 'name', 'rating', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'type', 'payment_methods', 'slug']
+        fields = ['id', 'name', 'lite', 'payment_link', 'rating', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'type', 'payment_methods', 'slug']
         depth = 2
 
     def get_menu_slug(self, obj):
