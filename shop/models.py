@@ -33,7 +33,10 @@ class Outlet(models.Model):
     services = models.CharField(max_length=100, default='dine_in')
     type = models.CharField(max_length=100, default='veg')
     payment_methods = models.CharField(max_length=100, default='online')
-    
+
+    lite = models.BooleanField(default=False)
+    payment_link = models.CharField(max_length=1000, blank=True, null=True)
+
     email = models.EmailField(null=True, blank=True)
     phone = models.CharField(max_length=15)
     whatsapp = models.CharField(max_length=15, null=True, blank=True)
@@ -57,6 +60,18 @@ class Outlet(models.Model):
     
     class Meta:
         ordering = ['name']
+
+class OutletDocument(models.Model):
+    outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE, related_name='documents')
+    document = models.FileField(upload_to='outlet_documents/')
+    name = models.CharField(max_length=100)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['uploaded_at']
 
 class OutletImage(models.Model):
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE, related_name='images')

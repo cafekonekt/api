@@ -21,6 +21,7 @@ from shop.models import (
     DiscountCoupon,
     OrderTimelineItem,
     ItemRelation,
+    OutletDocument
 )
 from import_export import resources
 from import_export.admin import ImportExportModelAdmin
@@ -114,3 +115,4 @@ admin.site.register(CartItem)
 admin.site.register(DiscountCoupon)
 admin.site.register(OrderTimelineItem)
 admin.site.register(ItemRelation, ItemRelationAdmin)
+admin.site.register(OutletDocument)
