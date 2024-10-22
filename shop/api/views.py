@@ -425,7 +425,7 @@ class CheckoutAPIView(APIView):
         # Clear the cart
         cart.delete()
 
-        if payment_method == 'cash':
+        if payment_method == 'cash' or payment_method == 'upi':
             menu = Menu.objects.get(outlet=order.outlet)
             channel_layer = get_channel_layer()
             order_data = OrderSerializer(order).data
@@ -450,7 +450,6 @@ class CheckoutAPIView(APIView):
                 "order_id": order.order_id,
                 "payment_session_id": None
             }, status=status.HTTP_201_CREATED)
-
 
         customer_details = CustomerDetails(
                     customer_id=user.get_user_id(),
@@ -781,6 +780,7 @@ class OutletListView(APIView):
         serializer = OutletSerializer(outlet)
         return Response(serializer.data)
 
+
 class OutletsListAPIView(APIView):
     permission_classes = []
 
@@ -956,7 +956,6 @@ class DiscountCouponListCreateView(APIView):
         coupons = DiscountCoupon.objects.all()
         serializer = DiscountCouponDetailSerializer(coupons, many=True)
         return Response(serializer.data)
-
 
 
 class ApplicableOffersAPIView(APIView):
