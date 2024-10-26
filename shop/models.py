@@ -228,8 +228,8 @@ class FoodItem(models.Model):
         name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
         self.slug = f"{menu_slug}-{name}"
         
-        if self.image and not self.image_url:
-            self.image_url = f"https://api.tacoza.co{settings.MEDIA_URL}{self.image.name}"
+        if self.image:
+            self.image_url = f"https://api.tacoza.co{settings.MEDIA_URL}food_items/{self.image.name}"
         
         super(FoodItem, self).save(*args, **kwargs)
 
@@ -344,6 +344,7 @@ class Order(models.Model):
     payment_session_id = models.CharField(max_length=500, blank=True, null=True)
     transaction_id = models.CharField(max_length=500, blank=True, null=True)
     
+    offer = models.ForeignKey('DiscountCoupon', on_delete=models.DO_NOTHING, related_name='usages', blank=True, null=True)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
@@ -477,40 +478,29 @@ class DiscountCoupon(models.Model):
 
     def __str__(self):
         return self.coupon_code
-    
+
     def is_applicable(self, user, cart):
-        if self.valid_from > timezone.now().date() or self.valid_to < timezone.now().date():
-            return False
+        """
+        Custom logic to check if a coupon is applicable to the user and the cart.
+        """
+        # Check how many orders this user has made for the specific outlet in the cart
+        order_count = Order.objects.filter(user=user, outlet=cart.outlet).count()
 
-        # Check if use limit has been reached
-        total_usage = self.usages.count()
-        if total_usage >= self.use_limit:
-            return False
+        if self.application_type == 'new' and order_count == 0:
+            return True
+        elif self.application_type == 'second' and order_count == 1:
+            return True
+        elif self.application_type == 'alluser':
+            return True
 
-        # Check user-specific usage
-        user_usage = self.usages.filter(user=user).count()
-        if user_usage >= self.use_limit_per_user:
-            return False
+        return False
 
-        # Check application type
-        if self.application_type == 'new' and Order.objects.filter(user=user).exists():
-            return False
-        if self.application_type == 'second' and Order.objects.filter(user=user).count() < 1:
-            return False
-
-        # Check minimum and maximum order value
-        cart_total = sum([item.get_total_price() for item in cart.items.all()])
-        if cart_total < self.minimum_order_value or (self.max_order_value > 0 and cart_total > self.max_order_value):
-            return False
-
-        # If the coupon is specific to certain products
-        if self.products.exists():
-            cart_food_item_ids = cart.items.values_list('food_item_id', flat=True)
-            if not any(food_item_id in self.products.values_list('id', flat=True) for food_item_id in cart_food_item_ids):
-                return False
-
-        return True
-
+    def get_usage_count(self):
+        """
+        Counts how many times this coupon has been used across all orders.
+        """
+        return Order.objects.filter(offer=self).count()
+    
     class Meta:
         ordering = ['created_at']
 
