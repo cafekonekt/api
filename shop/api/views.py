@@ -31,6 +31,7 @@ from shop.api.serializers import (
     DiscountCouponSerializer,)
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny
 from django.shortcuts import get_object_or_404
 from django.db import transaction, IntegrityError
@@ -49,6 +50,7 @@ from cashfree_pg.models.order_meta import OrderMeta
 from project.utils import send_notification_to_user
 from django.db.models import Count, Sum
 from django.utils import timezone
+from django.db import models
 
 from datetime import timedelta
 import datetime
@@ -138,14 +140,14 @@ class DashboardDataAPIView(APIView):
             .values('created_at__date')
             .annotate(orderCount=Count('order_id'))
             .order_by('created_at__date')
-        )
+        )[:7]
         
         revenue_data = (
             Order.objects.filter(outlet_id__in=user_outlet_ids)
             .values('created_at__date')
             .annotate(dailyRevenue=Sum('total'))
             .order_by('created_at__date')
-        )
+        )[:7]
 
         # Formatting data to match the required structure.
         orders = [
@@ -153,7 +155,7 @@ class DashboardDataAPIView(APIView):
             for order in orders_data
         ]
         revenue = [
-            {'date': revenue['created_at__date'].strftime('%Y-%m-%d'), 'dailyRevenue': float(revenue['dailyRevenue'])}
+            {'date': revenue['created_at__date'].strftime('%Y-%m-%d'), 'revenue': float(revenue['dailyRevenue'])}
             for revenue in revenue_data
         ]
 
@@ -218,21 +220,33 @@ class FoodItemListCreateView(APIView):
 
 
 class FoodItemDetailView(APIView):
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+
     def get(self, request, slug):
         food_item = get_object_or_404(FoodItem, slug=slug)
         serializer = FoodItemSerializer(food_item)
         return Response(serializer.data)
     
     def put(self, request, slug):
-        try:
-            food_item = get_object_or_404(FoodItem, slug=slug)
-            for key, value in request.data.items():
+        # try:
+        print(request.FILES, request.data.get('image'), 'image')
+        food_item = get_object_or_404(FoodItem, slug=slug)
+        fields_to_update = ['name', 'food_type', 'description', 'price', 'image', 'featured', 'in_stock', 'tags']
+
+        for key, value in request.data.items():
+            if key in fields_to_update and key != 'image':
                 setattr(food_item, key, value)
-                food_item.save()
-            serializer = FoodItemSerializer(food_item)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response("Invalid data", status=status.HTTP_400_BAD_REQUEST)
+        
+        # Handle image update separately
+        if 'image' in request.FILES:
+            food_item.image = request.FILES['image']
+        
+        food_item.save()
+        serializer = FoodItemSerializer(food_item)
+        return Response(serializer.data)
+        
+        # except Exception as e:
+        #     return Response("Invalid data", status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, slug):
         food_item = get_object_or_404(FoodItem, slug=slug)
@@ -953,35 +967,39 @@ class DiscountCouponListCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def get(self, request):
-        coupons = DiscountCoupon.objects.all()
+        user = request.user
+        coupons = DiscountCoupon.objects.filter(outlet__outlet_manager=user)
         serializer = DiscountCouponDetailSerializer(coupons, many=True)
         return Response(serializer.data)
 
 
+
 class ApplicableOffersAPIView(APIView):
-    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
         cart = Cart.objects.get(user=user)  # Assuming a user can only have one active cart
 
+        print(timezone.now().date())
+        print(DiscountCoupon.objects.first().valid_from)
         # Get all active discount coupons that haven't expired and haven't reached their use limit.
         coupons = DiscountCoupon.objects.filter(
-            valid_from__lte=timezone.now().date(),
-            valid_to__gte=timezone.now().date()
-        ).exclude(
-            usages__count__gte=models.F('use_limit')
-        ).distinct()
+            valid_from__gte=timezone.now().date(),
+            valid_to__lte=timezone.now().date()
+        )
+
+        print(coupons)
 
         # Create the serializer with context data
-        serializer = DiscountCouponSerializer(coupons, many=True, context={'user': user, 'cart': cart})
-        serialized_data = serializer.data
+        # serializer = DiscountCouponSerializer(coupons, many=True, context={'user': user, 'cart': cart})
+        # serialized_data = serializer.data
 
-        # Filter to find the best offer based on applicability and discount value
-        applicable_offers = [offer for offer in serialized_data if offer['is_applicable']]
-        best_offer = max(applicable_offers, key=lambda x: x['discount_value'], default=None)
+        # # Filter to find the best offer based on applicability and discount value
+        # applicable_offers = [offer for offer in serialized_data if offer['is_applicable']]
+        # best_offer = max(applicable_offers, key=lambda x: x['discount_value'], default=None)
 
-        return Response({
-            'offers': serialized_data,
-            'best_offer': best_offer
-        })
+        # return Response({
+        #     'offers': serialized_data,
+        #     'best_offer': best_offer
+        # })
+        return Response({"offers": [], "best_offer": None})

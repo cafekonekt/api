@@ -26,6 +26,7 @@ from shop.api.views import (
     DiscountCouponListCreateView,
     DashboardDataAPIView,
     OutletsListAPIView,
+    ApplicableOffersAPIView,
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -71,7 +72,8 @@ urlpatterns = [
     path('subscription/', SocketSeller.as_view(), name='subscription'),
 
     path('discount-coupons/', DiscountCouponListCreateView.as_view(), name='discount-coupon'),
-] 
+    path('offers/', ApplicableOffersAPIView.as_view(), name='offers'),
+]
 if not settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

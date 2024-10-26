@@ -1,5 +1,4 @@
 from rest_framework import serializers
-from rest_framework import viewsets
 from shop.models import (
     FoodCategory,
     SubCategory,
@@ -11,7 +10,6 @@ from shop.models import (
     OutletImage,
     ItemVariant,
     Variant,
-    VariantCategory,
     OrderTimelineItem,
     CartItem,
     Order,
@@ -452,6 +450,7 @@ class AreaSerializer(serializers.ModelSerializer):
 
 class DiscountCouponDetailSerializer(serializers.ModelSerializer):
     is_active = serializers.SerializerMethodField()
+    usage = serializers.SerializerMethodField()
     class Meta:
         model = DiscountCoupon
         fields = ['id', 
@@ -464,8 +463,14 @@ class DiscountCouponDetailSerializer(serializers.ModelSerializer):
                   'use_limit',
                   'use_limit_per_user',
                   'valid_from', 
+                  'application_type',
                   'valid_to', 
+                  'usage',
                   'is_active']
+    
+    def get_usage(self, obj):
+        """Return the usage count of the coupon."""
+        return obj.get_usage_count()
 
     def get_is_active(self, obj):
         """Calculate if the coupon is active."""
@@ -474,6 +479,7 @@ class DiscountCouponDetailSerializer(serializers.ModelSerializer):
 
 class DiscountCouponSerializer(serializers.ModelSerializer):
     is_applicable = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
 
     class Meta:
         model = DiscountCoupon
@@ -485,9 +491,28 @@ class DiscountCouponSerializer(serializers.ModelSerializer):
             'max_order_value',
             'application_type',
             'is_applicable',
+            'is_active',
         ]
 
     def get_is_applicable(self, obj):
+        """
+        Checks if the coupon is applicable for the user and their cart.
+        """
         user = self.context['user']
         cart = self.context['cart']
         return obj.is_applicable(user, cart)
+
+    def get_is_active(self, obj):
+        """
+        Checks if the coupon is active based on the cart's total value and usage limits.
+        """
+        cart = self.context['cart']
+        cart_total = sum([item.get_total_price() for item in cart.items.all()])
+
+        # Check if the coupon is within usage limits
+        if obj.get_usage_count() >= obj.use_limit:
+            return False
+
+        # Check if the cart total is within the minimum and maximum order value limits
+        return obj.minimum_order_value <= cart_total <= obj.max_order_value
+
