@@ -515,4 +515,3 @@ class DiscountCouponSerializer(serializers.ModelSerializer):
 
         # Check if the cart total is within the minimum and maximum order value limits
         return obj.minimum_order_value <= cart_total <= obj.max_order_value
-

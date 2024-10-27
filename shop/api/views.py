@@ -52,6 +52,7 @@ from django.db.models import Count, Sum
 from django.utils import timezone
 from django.db import models
 
+from django.core.cache import cache
 from datetime import timedelta
 import datetime
 import json
@@ -87,87 +88,94 @@ class TestNotificationView(APIView):
         payload = json.dumps({"title": "Test Notification", "body": "This is a test message."})
         send_notification_to_user(user, payload)
         return Response({'message': 'Notification sent.'}, status=status.HTTP_200_OK)
-                        
+
 
 class DashboardDataAPIView(APIView):
     def get(self, request, *args, **kwargs):
         # Get the current user
         user = request.user
-
-        # Get the current date
-        today = timezone.now().date()
-        
-        # Calculate the start of today and last week
-        start_of_today = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        start_of_last_week = today - timedelta(days=7)
-        start_of_week_before_last = start_of_last_week - timedelta(days=7)
-
-        # Filter orders to include only those from the user's outlet(s)
         user_outlet_ids = Outlet.objects.filter(outlet_manager=user).values_list('id', flat=True)
 
-        # Fetch today's total orders and revenue for the user's outlet(s)
+        # Key for cache
+        cache_key = f"dashboard_data_{user.id}"
+        cache_timeout = 24 * 60 * 60  # 24 hours in seconds
+
+        # Try to get cached data
+        demoData = cache.get(cache_key)
+
+        if not demoData:
+            # Compute data if not cached
+            today = timezone.now().date()
+            start_of_today = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            start_of_last_week = today - timedelta(days=7)
+            start_of_week_before_last = start_of_last_week - timedelta(days=7)
+
+            todays_revenue = Order.objects.filter(
+                outlet_id__in=user_outlet_ids,
+                created_at__gte=start_of_today
+            ).aggregate(total=Sum('total'))['total'] or 0
+
+            total_orders_last_week = Order.objects.filter(
+                outlet_id__in=user_outlet_ids,
+                created_at__date__gte=start_of_week_before_last,
+                created_at__date__lt=start_of_last_week
+            ).count()
+
+            total_revenue = Order.objects.filter(
+                outlet_id__in=user_outlet_ids
+            ).aggregate(total=Sum('total'))['total'] or 0
+
+            total_days = Order.objects.filter(
+                outlet_id__in=user_outlet_ids
+            ).values('created_at__date').distinct().count()
+
+            average_revenue = total_revenue / total_days if total_days else 0
+
+            orders_data = (
+                Order.objects.filter(outlet_id__in=user_outlet_ids)
+                .values('created_at__date')
+                .annotate(orderCount=Count('order_id'))
+                .order_by('created_at__date')
+            )[:7]
+            
+            revenue_data = (
+                Order.objects.filter(outlet_id__in=user_outlet_ids)
+                .values('created_at__date')
+                .annotate(dailyRevenue=Sum('total'))
+                .order_by('created_at__date')
+            )[:7]
+
+            orders = [
+                {'date': order['created_at__date'].strftime('%Y-%m-%d'), 'orderCount': order['orderCount']}
+                for order in orders_data
+            ]
+            revenue = [
+                {'date': revenue['created_at__date'].strftime('%Y-%m-%d'), 'revenue': float(revenue['dailyRevenue'])}
+                for revenue in revenue_data
+            ]
+
+            # Data to cache
+            demoData = {
+                'orders': orders,
+                'revenue': revenue,
+                'todaysRevenue': round(float(todays_revenue), 2),
+                'totalOrdersLastWeek': total_orders_last_week,
+                'averageRevenue': round(float(average_revenue), 2),
+            }
+
+            # Cache the data for 24 hours
+            cache.set(cache_key, demoData, cache_timeout)
+
+        # Fetch today's total orders (not cached)
+        start_of_today = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
         todays_orders = Order.objects.filter(
             outlet_id__in=user_outlet_ids,
             created_at__gte=start_of_today
         ).count()
 
-        todays_revenue = Order.objects.filter(
-            outlet_id__in=user_outlet_ids,
-            created_at__gte=start_of_today
-        ).aggregate(total=Sum('total'))['total'] or 0
+        # Add today's orders to the response data
+        demoData['todaysOrders'] = todays_orders
 
-        # Fetch total orders last week (week before the current 7 days)
-        total_orders_last_week = Order.objects.filter(
-            outlet_id__in=user_outlet_ids,
-            created_at__date__gte=start_of_week_before_last,
-            created_at__date__lt=start_of_last_week
-        ).count()
-
-        # Calculate average revenue (total revenue divided by total number of days in the current 'orders' data)
-        total_revenue = Order.objects.filter(
-            outlet_id__in=user_outlet_ids
-        ).aggregate(total=Sum('total'))['total'] or 0
-
-        total_days = Order.objects.filter(
-            outlet_id__in=user_outlet_ids
-        ).values('created_at__date').distinct().count()
-        
-        average_revenue = total_revenue / total_days if total_days else 0
-
-        # Fetch order counts and revenues grouped by date for the user's outlet(s)
-        orders_data = (
-            Order.objects.filter(outlet_id__in=user_outlet_ids)
-            .values('created_at__date')
-            .annotate(orderCount=Count('order_id'))
-            .order_by('created_at__date')
-        )[:7]
-        
-        revenue_data = (
-            Order.objects.filter(outlet_id__in=user_outlet_ids)
-            .values('created_at__date')
-            .annotate(dailyRevenue=Sum('total'))
-            .order_by('created_at__date')
-        )[:7]
-
-        # Formatting data to match the required structure.
-        orders = [
-            {'date': order['created_at__date'].strftime('%Y-%m-%d'), 'orderCount': order['orderCount']}
-            for order in orders_data
-        ]
-        revenue = [
-            {'date': revenue['created_at__date'].strftime('%Y-%m-%d'), 'revenue': float(revenue['dailyRevenue'])}
-            for revenue in revenue_data
-        ]
-
-        # Structure data as expected in the frontend.
-        demoData = {
-            'orders': orders,
-            'revenue': revenue,
-            'todaysOrders': todays_orders,
-            'todaysRevenue': round(float(todays_revenue), 2),
-            'totalOrdersLastWeek': total_orders_last_week,
-            'averageRevenue': round(float(average_revenue), 2),
-        }
         return Response(demoData, status=status.HTTP_200_OK)
 
 
@@ -176,7 +184,7 @@ class FoodCategoryListCreateView(APIView):
 
     def get(self, request, menu_slug):
         menu = get_object_or_404(Menu, menu_slug=menu_slug)
-        categories = FoodCategory.objects.filter(menu=menu)
+        categories = FoodCategory.objects.filter(menu=menu).order_by('order', 'name')
         serializer = FoodCategorySerializer(categories, many=True)
         category_data = serializer.data
 
@@ -207,7 +215,7 @@ class FoodItemListCreateView(APIView):
         user = request.user
         outlet = Outlet.objects.filter(outlet_manager=user).first()
         menu = Menu.objects.filter(outlet=outlet).first()
-        categories = FoodCategory.objects.filter(menu=menu)
+        categories = FoodCategory.objects.filter(menu=menu).order_by('order', 'name')
         serializer = FoodCategorySerializer(categories, many=True)
         return Response(serializer.data)
 
@@ -700,10 +708,14 @@ class LiveOrders(APIView):
             outlet=outlet,
             created_at__date=datetime.datetime.now().date(),
             payment_status='success'  # Payment status condition
-        ) | Order.objects.filter(
+        ).order_by('-created_at') | Order.objects.filter(
             outlet=outlet,
             created_at__date=datetime.datetime.now().date(),
             payment_method='cash'  # Payment method condition
+        ).order_by('-created_at') | Order.objects.filter(
+            outlet=outlet,
+            created_at__date=datetime.datetime.now().date(),
+            outlet__lite=True
         ).order_by('-created_at')
 
         serializer = OrderSerializer(orders, many=True)
@@ -971,7 +983,6 @@ class DiscountCouponListCreateView(APIView):
         coupons = DiscountCoupon.objects.filter(outlet__outlet_manager=user)
         serializer = DiscountCouponDetailSerializer(coupons, many=True)
         return Response(serializer.data)
-
 
 
 class ApplicableOffersAPIView(APIView):
