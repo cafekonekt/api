@@ -212,6 +212,7 @@ class FoodItem(models.Model):
     addons = models.ManyToManyField(Addon, related_name='food_items', blank=True)
     variant = models.ManyToManyField(VariantCategory, related_name='food_items', blank=True)
     tags = models.ManyToManyField('FoodTag', related_name='food_items', blank=True)
+    order = models.PositiveIntegerField(default=0)
     
     prepration_time = models.PositiveIntegerField(default=30)
     slug = models.SlugField(max_length=100, unique=True, blank=True, null=True)
@@ -220,7 +221,7 @@ class FoodItem(models.Model):
         return self.name
     
     class Meta:
-        ordering = ['name']
+        ordering = ['order', 'name']
 
     def save(self, *args, **kwargs):
         # slug should be all lowercase and separated by hyphens and alphanumeric
@@ -247,6 +248,7 @@ class FoodTag(models.Model):
 class FoodCategory(models.Model):
     menu = models.ForeignKey('Menu', on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
+    order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
