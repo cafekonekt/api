@@ -10,8 +10,9 @@ from shop.api.views import (
     PaymentStatusAPIView,
     CashfreeWebhookView,
     OrderList,
-    LiveOrders, 
+    LiveOrders,
     OrderDetailAPIView,
+    SettelmentStatusAPIView,
     OutletListView,
     OutletListCreateView,
     OutletDetailView,
@@ -35,7 +36,7 @@ urlpatterns = [
     path('subscribe/', WebPushSubscriptionView.as_view(), name='subscription'),
     path('test-notification/', TestNotificationView.as_view(), name='test-notification'),
     path('dashboard/', DashboardDataAPIView.as_view(), name='dashboard'),
-    
+
     path('menu/<slug:menu_slug>/', FoodCategoryListCreateView.as_view(), name='food-category'),
 
     path('food-items/', FoodItemListCreateView.as_view(), name='food-item'),
@@ -56,6 +57,8 @@ urlpatterns = [
     path('live-orders/<slug:order_id>/', LiveOrders.as_view(), name='live-orders-detail'),
     path('order/<slug:order_id>/', OrderDetailAPIView.as_view(), name='orders'),
 
+    path('get-payments/<int:days>', SettelmentStatusAPIView.as_view(), name='orders'),
+
     path('list-outlets/', OutletsListAPIView.as_view(), name='outlet'),
     path('outlet/<slug:menu_slug>', OutletListView.as_view(), name='outlet'),
     path('outlet/', OutletListCreateView.as_view(), name='outlet'),
@@ -74,6 +77,7 @@ urlpatterns = [
     path('discount-coupons/', DiscountCouponListCreateView.as_view(), name='discount-coupon'),
     path('offers/', ApplicableOffersAPIView.as_view(), name='offers'),
 ]
+
 if not settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

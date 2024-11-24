@@ -1,20 +1,21 @@
 from django.contrib import admin
 from shop.models import (
-    Shop, 
-    Outlet, 
+    Shop,
+    Outlet,
     OutletImage,
-    Menu, 
-    Variant, 
-    FoodItem, 
-    FoodCategory, 
-    SubCategory, 
-    AddonCategory, 
+    Menu,
+    Variant,
+    FoodItem,
+    FoodCategory,
+    SubCategory,
+    AddonCategory,
     Addon, 
     Table, 
     TableArea,
     VariantCategory,
     ItemVariant,
     Order,
+    Payouts,
     OrderItem,
     Cart,
     CartItem,
@@ -109,6 +110,7 @@ admin.site.register(VariantCategory, VariantCategoryAdmin)
 admin.site.register(Table)
 admin.site.register(TableArea)
 admin.site.register(Order)
+admin.site.register(Payouts)
 admin.site.register(OrderItem)
 admin.site.register(Cart)
 admin.site.register(CartItem)
