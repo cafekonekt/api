@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'import_export',
     'rest_framework',
+    'django_filters',
     'rest_framework_simplejwt.token_blacklist',
     'authentication.apps.AuthenticationConfig',
     'shop.apps.ShopConfig',

@@ -24,6 +24,7 @@ class CustomUserManager(BaseUserManager):
 
         return self.create_user(email=email, password=password, **extra_fields)
 
+
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
         ('customer', 'Customer'),
@@ -63,6 +64,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         name = re.sub(r'[^a-zA-Z0-9]', '', name)
         return f"{self.id}{name}{self.role}"
 
+
 class OTP(models.Model):
     phone_number = models.CharField(max_length=15)
     otp = models.CharField(max_length=6)
@@ -75,6 +77,7 @@ class OTP(models.Model):
     def __str__(self):
         return f"OTP for {self.phone_number}: {self.otp} (Verified: {self.is_verified})"
 
+
 class WebPushInfo(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='webpush_info')
     endpoint = models.TextField()
@@ -83,12 +86,14 @@ class WebPushInfo(models.Model):
 
     def __str__(self):
         return f"WebPushInfo for {self.user.email}: {self.endpoint}"
-    
+
+
 class Group(models.Model):
     name = models.CharField(max_length=255)
 
     def __str__(self):
         return self.name
+
 
 class PushInformation(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='push_information')
