@@ -6,6 +6,7 @@ from django.utils import timezone
 import uuid
 import re
 
+
 class Shop(models.Model):
     name = models.CharField(max_length=100)
     owner = models.CharField(max_length=100)
@@ -15,9 +16,10 @@ class Shop(models.Model):
 
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['name']
+
 
 class Outlet(models.Model):
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
@@ -61,17 +63,20 @@ class Outlet(models.Model):
     class Meta:
         ordering = ['name']
 
+
 class OutletDocument(models.Model):
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE, related_name='documents')
     document = models.FileField(upload_to='outlet_documents/')
+    value = models.CharField(max_length=100, blank=True, null=True)
     name = models.CharField(max_length=100)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.outlet.name} {self.name}"
 
     class Meta:
         ordering = ['uploaded_at']
+
 
 class OutletImage(models.Model):
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE, related_name='images')
@@ -85,6 +90,7 @@ class OutletImage(models.Model):
 
     def __str__(self):
         return f"Image {self.id} for {self.outlet.name}"
+
 
 class OperatingHours(models.Model):
     DAYS_OF_WEEK = [
@@ -108,6 +114,7 @@ class OperatingHours(models.Model):
     def __str__(self):
         return f"{self.outlet.name} - {self.day_of_week}: {self.opening_time} to {self.closing_time}"
 
+
 class Menu(models.Model):
     menu_slug = models.SlugField(max_length=100, unique=True, primary_key=True)
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
@@ -119,6 +126,7 @@ class Menu(models.Model):
 
     class Meta:
         ordering = ['created_at']
+
 
 class Addon(models.Model):
     ADDONTYPE_CHOICES = [
@@ -136,13 +144,14 @@ class Addon(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     item_variant = models.ManyToManyField("ItemVariant", related_name='addons', blank=True)
-    
+
 
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['name']
+
 
 class AddonCategory(models.Model):
     menu = models.ForeignKey('Menu', on_delete=models.CASCADE, related_name='addon_categories')
@@ -152,9 +161,10 @@ class AddonCategory(models.Model):
 
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['name']
+
 
 class VariantCategory(models.Model):
     name = models.CharField(max_length=50)
@@ -166,6 +176,7 @@ class VariantCategory(models.Model):
 
     class Meta:
         ordering = ['name']
+
 
 class Variant(models.Model):
     name = models.CharField(max_length=50)
@@ -179,6 +190,7 @@ class Variant(models.Model):
     class Meta:
         ordering = ['name']
 
+
 class ItemVariant(models.Model):
     food_item = models.ForeignKey('FoodItem', on_delete=models.CASCADE, related_name='item_variants')
     variant = models.ManyToManyField('Variant', related_name='item_variants')
@@ -186,9 +198,10 @@ class ItemVariant(models.Model):
 
     def __str__(self):
         return f"{self.food_item.name} - {[variant.name for variant in self.variant.all()]} - {float(self.price)}"
-    
+
     class Meta:
         ordering = ['food_item']
+
 
 class FoodItem(models.Model):
     FOODTYPE_CHOICES = [
@@ -213,13 +226,13 @@ class FoodItem(models.Model):
     variant = models.ManyToManyField(VariantCategory, related_name='food_items', blank=True)
     tags = models.ManyToManyField('FoodTag', related_name='food_items', blank=True)
     order = models.PositiveIntegerField(default=0)
-    
+
     prepration_time = models.PositiveIntegerField(default=30)
     slug = models.SlugField(max_length=100, unique=True, blank=True, null=True)
 
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['order', 'name']
 
@@ -228,11 +241,11 @@ class FoodItem(models.Model):
         menu_slug = self.menu.menu_slug
         name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
         self.slug = f"{menu_slug}-{name}"
-        
+
         if self.image:
             self.image_url = f"https://api.tacoza.co{settings.MEDIA_URL}food_items/{self.image.name}"
-        
         super(FoodItem, self).save(*args, **kwargs)
+
 
 class FoodTag(models.Model):
     name = models.CharField(max_length=100)
@@ -241,9 +254,10 @@ class FoodTag(models.Model):
 
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['name']
+
 
 class FoodCategory(models.Model):
     menu = models.ForeignKey('Menu', on_delete=models.CASCADE)
@@ -254,9 +268,10 @@ class FoodCategory(models.Model):
 
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['name']
+
 
 class SubCategory(models.Model):
     category = models.ForeignKey(FoodCategory, on_delete=models.CASCADE, related_name='sub_categories')
@@ -266,9 +281,10 @@ class SubCategory(models.Model):
 
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['name']
+
 
 class Cart(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
@@ -278,10 +294,11 @@ class Cart(models.Model):
 
     def __str__(self):
         return f"{self.user.email or self.user.phone_number} - {self.outlet.name}"
-    
+
     class Meta:
         ordering = ['user']
         unique_together = ('user', 'outlet')
+
 
 class CartItem(models.Model):
     id = models.AutoField(primary_key=True)
@@ -296,7 +313,7 @@ class CartItem(models.Model):
 
     def __str__(self):
         return f"{self.food_item.name} - {self.quantity}"
-    
+
     def get_total_price(self):
         price = self.food_item.price
         if self.variant:
@@ -308,6 +325,7 @@ class CartItem(models.Model):
     class Meta:
         ordering = ['food_item']
         unique_together = (('cart', 'item_id'))
+
 
 class Order(models.Model):
     STATUS_CHOICES = [
@@ -345,33 +363,56 @@ class Order(models.Model):
     payment_id = models.CharField(max_length=500, blank=True, null=True)
     payment_session_id = models.CharField(max_length=500, blank=True, null=True)
     transaction_id = models.CharField(max_length=500, blank=True, null=True)
-    
+
     offer = models.ForeignKey('DiscountCoupon', on_delete=models.DO_NOTHING, related_name='usages', blank=True, null=True)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    
+
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
     table = models.ForeignKey('Table', on_delete=models.CASCADE, blank=True, null=True)
     cooking_instructions = models.TextField(blank=True, null=True)
     order_type = models.CharField(max_length=10, choices=ORDER_TYPE_CHOICES, default='dine-in')
     total = models.DecimalField(max_digits=10, decimal_places=2)
-    
+
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     payment_status = models.CharField(max_length=30, choices=PAYMENT_STATUS_CHOICES, default='active')
     payment_method = models.CharField(max_length=100, choices=PAYMENT_METHOD_CHOICES, default='online')
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
         return self.order_id
-        
+
     class Meta:
         ordering = ['-created_at']
-        
+
     def get_total_price(self):
         items = OrderItem.objects.filter(order=self)
         total = float(sum([item.get_total_price() for item in items]))
         return total
+
+
+class Payouts(models.Model):
+    PAYMENT_STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('success', 'Success'),
+        ('pending', 'Pending'),
+        ('refund', 'Refunded')
+    ]
+    outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
+    date = models.DateField()
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=30, choices=PAYMENT_STATUS_CHOICES, default='active')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.outlet} - {self.date} - {self.amount} - {self.status}"
+
+    class Meta:
+        ordering = ['-date']
+        verbose_name_plural = 'Payouts'
+
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
@@ -384,7 +425,7 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.food_item.name} - {self.quantity}"
-    
+
     class Meta:
         ordering = ['food_item']
 
@@ -397,11 +438,12 @@ class OrderItem(models.Model):
             price += addon.price
         return float(price * self.quantity)
 
+
 class OrderTimelineItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='timeline')
     stage = models.CharField(max_length=100)
     done = models.BooleanField(default=False)
-    content = models.TextField(blank=True, null=True)    
+    content = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -410,6 +452,7 @@ class OrderTimelineItem(models.Model):
 
     class Meta:
         ordering = ['created_at']
+
 
 class Table(models.Model):
     table_id = models.CharField(max_length=100, unique=True, default=uuid.uuid4)
@@ -423,7 +466,7 @@ class Table(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.outlet.name}"
-    
+
     def get_url(self):
         if self.url:
             return f"https://api.tacoza.co/{self.url.short_code}"
@@ -436,6 +479,7 @@ class Table(models.Model):
     class Meta:
         ordering = ['name']
 
+
 class TableArea(models.Model):
     outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
@@ -444,9 +488,10 @@ class TableArea(models.Model):
 
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['name']
+
 
 class DiscountCoupon(models.Model):
     DISCOUNT_TYPE_CHOICES = [
@@ -505,6 +550,7 @@ class DiscountCoupon(models.Model):
     
     class Meta:
         ordering = ['created_at']
+
 
 class ItemRelation(models.Model):
     RELATION_TYPE_CHOICES = [

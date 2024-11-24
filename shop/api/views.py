@@ -14,9 +14,11 @@ from shop.models import (
     OrderItem,
     Table,
     Order,
+    Payouts,
     TableArea,
     OrderTimelineItem,
     DiscountCoupon,)
+from authentication.models import CustomUser
 from shop.api.serializers import (
     FoodCategorySerializer,
     OutletSerializer,
@@ -30,17 +32,23 @@ from shop.api.serializers import (
     DiscountCouponDetailSerializer,
     DiscountCouponSerializer,)
 from rest_framework import status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny
 from django.shortcuts import get_object_or_404
 from django.db import transaction, IntegrityError
+from django.db.models import Q
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
+from django.utils.dateparse import parse_date
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
 
 from cashfree_pg.models.create_order_request import CreateOrderRequest
 from cashfree_pg.api_client import Cashfree
@@ -98,7 +106,7 @@ class DashboardDataAPIView(APIView):
 
         # Key for cache
         cache_key = f"dashboard_data_{user.id}"
-        cache_timeout = 24 * 60 * 60  # 24 hours in seconds
+        cache_timeout = 6 * 60 * 60  # 6 hours in seconds
 
         # Try to get cached data
         demoData = cache.get(cache_key)
@@ -109,38 +117,54 @@ class DashboardDataAPIView(APIView):
             start_of_today = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
             start_of_last_week = today - timedelta(days=7)
             start_of_week_before_last = start_of_last_week - timedelta(days=7)
+            start_of_month = today.replace(day=1)
 
             todays_revenue = Order.objects.filter(
                 outlet_id__in=user_outlet_ids,
-                created_at__gte=start_of_today
+                created_at__gte=start_of_today,
+                payment_status='success',
             ).aggregate(total=Sum('total'))['total'] or 0
 
             total_orders_last_week = Order.objects.filter(
                 outlet_id__in=user_outlet_ids,
                 created_at__date__gte=start_of_week_before_last,
-                created_at__date__lt=start_of_last_week
+                created_at__date__lt=start_of_last_week,
+                payment_status='success',
+            ).count()
+            
+            total_orders_this_month = Order.objects.filter(
+                outlet_id__in=user_outlet_ids,
+                created_at__month=today.month,
+                created_at__year=today.year,
+                payment_status='success',
             ).count()
 
             total_revenue = Order.objects.filter(
-                outlet_id__in=user_outlet_ids
+                outlet_id__in=user_outlet_ids,
+                payment_status='success'
             ).aggregate(total=Sum('total'))['total'] or 0
 
             total_days = Order.objects.filter(
-                outlet_id__in=user_outlet_ids
+                outlet_id__in=user_outlet_ids,
+                payment_status='success',
             ).values('created_at__date').distinct().count()
 
             average_revenue = total_revenue / total_days if total_days else 0
 
             orders_data = (
-                Order.objects.filter(outlet_id__in=user_outlet_ids)
-                .values('created_at__date')
+                Order.objects.filter(
+                    outlet_id__in=user_outlet_ids,
+                    payment_status='success',
+                ).values('created_at__date')
                 .annotate(orderCount=Count('order_id'))
                 .order_by('created_at__date')
             )[:7]
             
             revenue_data = (
-                Order.objects.filter(outlet_id__in=user_outlet_ids)
-                .values('created_at__date')
+                Order.objects.filter(
+                    outlet_id__in=user_outlet_ids,
+                    payment_status='success',
+                ).values('created_at__date')
                 .annotate(dailyRevenue=Sum('total'))
                 .order_by('created_at__date')
             )[:7]
@@ -153,11 +177,44 @@ class DashboardDataAPIView(APIView):
                 {'date': revenue['created_at__date'].strftime('%Y-%m-%d'), 'revenue': float(revenue['dailyRevenue'])}
                 for revenue in revenue_data
             ]
-
+            
+            user_outlet_ids = Outlet.objects.filter(outlet_manager=user).values_list('id', flat=True)
+            
+            new_users_this_month = CustomUser.objects.filter(
+                order__outlet_id__in=user_outlet_ids,
+                # order__created_at__gte=start_of_month,
+            ).annotate(
+                order_count_in_month=Count('order', filter=Q(order__created_at__gte=start_of_month, order__outlet_id__in=user_outlet_ids))
+            ).filter(
+                order_count_in_month=1
+            ).distinct().count()
+            
+            print('new_users_this_month')
+            print(new_users_this_month)
+            
+            active_users_this_month = CustomUser.objects.filter(
+                order__outlet_id__in=user_outlet_ids,
+                # order__created_at__month=today.month,
+                # order__created_at__year=today.year,
+            ).annotate(
+                previous_orders=Count('order', filter=Q(order__created_at__lt=start_of_month, order__outlet_id__in=user_outlet_ids))
+            ).filter(
+                previous_orders__gt=0
+            ).distinct().count()
+            
+            print('active_users_this_month')
+            print(active_users_this_month)
+            
             # Data to cache
             demoData = {
+                # graph
                 'orders': orders,
                 'revenue': revenue,
+                # stats
+                'total_revenue': total_revenue,
+                'new_users_this_month': new_users_this_month,
+                'active_users_this_month': active_users_this_month,
+                'total_orders_this_month': total_orders_this_month,
                 'todaysRevenue': round(float(todays_revenue), 2),
                 'totalOrdersLastWeek': total_orders_last_week,
                 'averageRevenue': round(float(average_revenue), 2),
@@ -610,21 +667,101 @@ class PaymentStatusAPIView(APIView):
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class OrderList(APIView):
-    permission_classes = [IsAuthenticated]
+class SettelmentStatusAPIView(APIView):
 
-    def get(self, request):
+    def get(self, request, days):
         user = request.user
+        outlet = Outlet.objects.filter(outlet_manager=user).first()
+        current_date = timezone.now().date()
+
+        print(outlet, 'outlet')
+        # Get orders that are at least 3 days old and payment_status is 'success'
+        days_ago = current_date - timedelta(days=days)
+        print(days_ago, 'days_ago')
+        successful_orders = Order.objects.filter(
+            outlet=outlet,
+            payment_status='success',
+            created_at__date__gte=days_ago,
+        ).exclude(payment_method='cash')
+        
+        print(successful_orders, 'successful_orders')
+
+        # Aggregate by day and calculate total amount
+        orders_by_day = successful_orders.values('created_at__date').annotate(total_amount=Sum('total'))
+        print(orders_by_day)
+        
+        formatted_orders = [
+            {"date": str(order['created_at__date']), "totalPayment": order['total_amount']}
+            for order in orders_by_day
+        ]
+        
+        payouts_by_day = {}
+        # Iterate over each day's orders and create/update Payout instance
+        for order_group in orders_by_day:
+            payout_date = order_group['created_at__date']
+            total_amount = order_group['total_amount']
+            payout = Payouts.objects.filter(date=payout_date, outlet=outlet).first()
+            # Check if a Payouts entry exists for this date
+            if not payout:
+                # Create a new Payouts entry
+                payout = Payouts.objects.create(
+                    outlet=outlet,
+                    date=payout_date,
+                    amount=total_amount,
+                    status='pending'  # Initially set to pending
+                )
+            payouts_by_day[f"{payout_date}"] = {
+                "amount": payout.amount,
+                "status": payout.status
+            }
+            print(payout_date, 'payout_date')
+        
+        return Response({"orders_by_day": formatted_orders, "payouts_by_day": payouts_by_day}, status=status.HTTP_200_OK)
+
+
+
+# Custom pagination class
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 10  # Default items per page
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+class OrderList(ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = OrderSerializer
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    ordering_fields = ['created_at']
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Order.objects.all()
+
+        # Filtering based on user role
         if user.role == 'owner':
             outlet = Outlet.objects.filter(outlet_manager=user).first()
-            orders = Order.objects.filter(outlet=outlet).order_by('-created_at')
-            orders = orders.order_by('-created_at')
+            queryset = queryset.filter(outlet=outlet)
         else:
-            orders = Order.objects.filter(user=user).order_by('-created_at')
+            queryset = queryset.filter(user=user)
+            
+        print(queryset, 'queryset')
+        # Date filtering
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        specific_date = self.request.query_params.get('date')
         
-        serializer = OrderSerializer(orders, many=True)
-        return Response(serializer.data)
+        print(start_date, end_date, specific_date, 'dates')
+        
+        if start_date and end_date:
+            # Filter for a date range
+            queryset = queryset.filter(created_at__range=[parse_date(start_date), parse_date(end_date)])
+        elif specific_date:
+            # Filter for a specific date
+            queryset = queryset.filter(created_at__date=parse_date(specific_date))
+        
+        print(queryset, 'queryset')
 
+        return queryset 
 
 class OrderDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -632,6 +769,12 @@ class OrderDetailAPIView(APIView):
     def get(self, request, order_id):
         user = request.user
         order = get_object_or_404(Order, order_id=order_id)
+        try:
+            api_response = Cashfree().PGOrderFetchPayments(x_api_version, order_id, None)
+            print(api_response.data)
+        except:
+            print("Something Wrong")
+
         if user.role == 'owner' and order.outlet.outlet_manager != user:
             return Response({"detail": "You are not authorized to view this order."}, status=status.HTTP_403_FORBIDDEN)
         elif user.role == 'customer' and order.user != user:
@@ -645,7 +788,7 @@ class OrderDetailAPIView(APIView):
         order = get_object_or_404(Order, order_id=order_id)
         if order.outlet.outlet_manager != user:
             return Response({"detail": "You are not authorized to update this order."}, status=status.HTTP_403_FORBIDDEN)
-        
+
         data = request.data
         payment_status = data.get('status')
         if payment_status not in ['success', 'pending', 'cancelled']:
@@ -667,7 +810,7 @@ class OrderDetailAPIView(APIView):
             if not created:
                 timeline_item.updated_at = timezone.now()
                 timeline_item.save()
-            
+
             # Notify the user
             payload = json.dumps({
                 "title": "Order Cancelled",
@@ -799,7 +942,7 @@ class LiveOrders(APIView):
 
 class OutletListView(APIView):
     permission_classes = []
-    
+
     def get(self, request, menu_slug):
         menu = get_object_or_404(Menu, menu_slug=menu_slug)
         outlet = menu.outlet
@@ -860,7 +1003,7 @@ class TableListView(APIView):
         tables = Table.objects.filter(outlet=menu.outlet)
         serializer = TableSerializer(tables, many=True)
         return Response(serializer.data)
-    
+
 
 class TableListCreateView(APIView):
     def get(self, request):
@@ -871,7 +1014,7 @@ class TableListCreateView(APIView):
             return Response(serializer.data)
         except Exception as e:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
     def post(self, request):
         try:
             user = request.user
