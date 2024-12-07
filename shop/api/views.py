@@ -754,7 +754,7 @@ class OrderList(ListAPIView):
         
         if start_date and end_date:
             # Filter for a date range
-            queryset = queryset.filter(created_at__range=[parse_date(start_date), parse_date(end_date)])
+            queryset = queryset.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
         elif specific_date:
             # Filter for a specific date
             queryset = queryset.filter(created_at__date=parse_date(specific_date))

@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from authentication.models import CustomUser
 from shortener.models import ShortenedURL
 from django.conf import settings
@@ -110,9 +112,34 @@ class OperatingHours(models.Model):
 
     class Meta:
         unique_together = ('outlet', 'day_of_week')  # Ensures no duplicate entries for the same day of the week
+        verbose_name_plural = 'Operating Hours'
+        
 
     def __str__(self):
         return f"{self.outlet.name} - {self.day_of_week}: {self.opening_time} to {self.closing_time}"
+
+
+@receiver(post_save, sender=Outlet)
+def create_operating_hours(sender, instance, created, **kwargs):
+    if created:
+        # Define default opening and closing times
+        default_opening_time = '13:00:00'  # 1 PM
+        default_closing_time = '23:00:00'  # 11 PM
+
+        # List of all days of the week
+        days_of_week = [
+            'Monday', 'Tuesday', 'Wednesday', 'Thursday', 
+            'Friday', 'Saturday', 'Sunday'
+        ]
+
+        # Create OperatingHours for each day
+        for day in days_of_week:
+            OperatingHours.objects.create(
+                outlet=instance,
+                day_of_week=day,
+                opening_time=default_opening_time,
+                closing_time=default_closing_time
+            )
 
 
 class Menu(models.Model):

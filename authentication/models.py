@@ -27,10 +27,12 @@ class CustomUserManager(BaseUserManager):
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
-        ('customer', 'Customer'),
-        ('owner', 'Owner'),
         ('admin', 'Admin'),
-        ('outlet_manager', 'Outlet Manager')
+        ('owner', 'Owner'),
+        ('chef', 'Chef'),
+        ('outlet_manager', 'Outlet Manager'),
+        ('staff', 'Staff'),
+        ('customer', 'Customer'),
     ]
     id = models.AutoField(primary_key=True)
     email = models.EmailField(unique=True, null=True, blank=True)
