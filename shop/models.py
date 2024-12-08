@@ -270,7 +270,7 @@ class FoodItem(models.Model):
         self.slug = f"{menu_slug}-{name}"
 
         if self.image:
-            self.image_url = f"https://api.tacoza.co{settings.MEDIA_URL}food_items/{self.image.name}"
+            self.image_url = f"https://api.tacoza.co{settings.MEDIA_URL}/{self.image.name}"
         super(FoodItem, self).save(*args, **kwargs)
 
 
