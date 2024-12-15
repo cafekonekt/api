@@ -22,6 +22,8 @@ from authentication.models import CustomUser
 from shop.api.serializers import (
     FoodCategorySerializer,
     OutletSerializer,
+    CustomerOutletSerializer,
+    OwnerOutletSerializer,
     CartItemSerializer,
     FoodItemSerializer,
     OrderSerializer,
@@ -49,6 +51,7 @@ from django.utils.decorators import method_decorator
 from django.utils.dateparse import parse_date
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
+from authentication.utils import RoleBasedSerializer
 
 from cashfree_pg.models.create_order_request import CreateOrderRequest
 from cashfree_pg.api_client import Cashfree
@@ -73,6 +76,8 @@ if settings.DEBUG:
     Cashfree.XEnvironment = Cashfree.SANDBOX
 x_api_version = "2023-08-01"
 
+CUSTOMER = 'customer'
+OWNER = 'owner'
 
 class WebPushSubscriptionView(APIView):
     permission_classes = []
@@ -283,6 +288,15 @@ class FoodItemListCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class FoodItemByCategory(APIView):
+    permission_classes = []
+    def get(self, request, slug):
+        category = get_object_or_404(FoodCategory, slug=slug)
+        print(category, 'category')
+        food_items = FoodItem.objects.filter(food_category=category)
+        print(food_items, 'food_items')
+        serializer = FoodItemSerializer(food_items, many=True)
+        return Response(serializer.data)
 
 class FoodItemDetailView(APIView):
     parser_classes = (MultiPartParser, FormParser, JSONParser)
@@ -719,12 +733,12 @@ class SettelmentStatusAPIView(APIView):
         return Response({"orders_by_day": formatted_orders, "payouts_by_day": payouts_by_day}, status=status.HTTP_200_OK)
 
 
-
 # Custom pagination class
 class StandardResultsSetPagination(PageNumberPagination):
     page_size = 10  # Default items per page
     page_size_query_param = 'page_size'
     max_page_size = 100
+
 
 class OrderList(ListAPIView):
     permission_classes = [IsAuthenticated]
@@ -754,14 +768,16 @@ class OrderList(ListAPIView):
         
         if start_date and end_date:
             # Filter for a date range
-            queryset = queryset.filter(created_at__range=[parse_date(start_date), parse_date(end_date)])
+            queryset = queryset.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
         elif specific_date:
             # Filter for a specific date
             queryset = queryset.filter(created_at__date=parse_date(specific_date))
         
+        
         print(queryset, 'queryset')
 
         return queryset 
+
 
 class OrderDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -858,7 +874,7 @@ class LiveOrders(APIView):
         ).order_by('-created_at') | Order.objects.filter(
             outlet=outlet,
             created_at__date=datetime.datetime.now().date(),
-            outlet__lite=True
+            outlet__outlet_type='lite'
         ).order_by('-created_at')
 
         serializer = OrderSerializer(orders, many=True)
@@ -940,7 +956,7 @@ class LiveOrders(APIView):
         return Response({"message": f"Order {new_status} successfully."}, status=status.HTTP_200_OK)
 
 
-class OutletListView(APIView):
+class OutleDetailView(APIView):
     permission_classes = []
 
     def get(self, request, menu_slug):
@@ -962,8 +978,17 @@ class OutletsListAPIView(APIView):
 class OutletListCreateView(APIView):
     def get(self, request):
         user = request.user
+        role_serializer_map = {
+            CUSTOMER: CustomerOutletSerializer,
+            OWNER: OwnerOutletSerializer,
+        }
         outlet = Outlet.objects.filter(outlet_manager=user).first()
-        serializer = OutletSerializer(outlet)
+        role_based_serializer = RoleBasedSerializer(role_serializer_map)
+        # Get the serializer class based on the user's role
+        serializer_class = role_based_serializer.get_serializer_class(user.role)
+        if not serializer_class:
+            return Response({"error": "You are not authorized to view this data."}, status=status.HTTP_403_FORBIDDEN)
+        serializer = serializer_class(outlet)
         return Response(serializer.data)
 
     def post(self, request):

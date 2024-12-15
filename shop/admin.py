@@ -2,6 +2,7 @@ from django.contrib import admin
 from shop.models import (
     Shop,
     Outlet,
+    OperatingHours,
     OutletImage,
     Menu,
     Variant,
@@ -97,6 +98,7 @@ class ItemRelationAdmin(admin.ModelAdmin):
 
 admin.site.register(Shop)
 admin.site.register(Outlet)
+admin.site.register(OperatingHours)
 admin.site.register(OutletImage)
 admin.site.register(Menu)
 admin.site.register(FoodItem, FoodItemAdmin)

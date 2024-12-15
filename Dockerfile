@@ -7,6 +7,13 @@ ENV PYTHONUNBUFFERED 1
 RUN apt update
 RUN apt install python3-pip python3-dev libpq-dev postgresql-contrib -y
 
+# Install tzdata
+RUN apt-get update && apt-get install -y tzdata
+
+# Set the timezone
+ENV TZ=Asia/Kolkata
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # install dependencies
 RUN pip install --upgrade pip
 COPY ./requirements.txt .
@@ -22,4 +29,4 @@ COPY . .
 RUN ["chmod", "+x", "./entrypoint.sh"]
 
 # Run entrypoint.sh
-ENTRYPOINT ["./entrypoint.sh"]
+# ENTRYPOINT ["./entrypoint.sh"]

@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.conf import settings
 from shop.models import (
     FoodCategory,
     SubCategory,
@@ -7,6 +8,7 @@ from shop.models import (
     Addon,
     AddonCategory,
     Outlet,
+    OperatingHours,
     OutletImage,
     ItemVariant,
     Variant,
@@ -19,14 +21,14 @@ from shop.models import (
     Menu,
     DiscountCoupon)
 from authentication.api.serializers import UserSerializer
-from django.conf import settings
-from django.utils import timezone
 from django.db.models import Count
+from django.utils import timezone
 
 class FoodTagSerializer(serializers.ModelSerializer):
     class Meta:
         model = FoodTag
         fields = ['id', 'name']
+
 
 class AddonSerializer(serializers.ModelSerializer):
     applied_variant = serializers.SerializerMethodField()
@@ -39,6 +41,7 @@ class AddonSerializer(serializers.ModelSerializer):
         """Return the variant name."""
         return [variant.id for variant in obj.item_variant.all()] if obj.item_variant else None
 
+
 class AddonCategorySerializer(serializers.ModelSerializer):
     addons = serializers.SerializerMethodField()
 
@@ -50,7 +53,8 @@ class AddonCategorySerializer(serializers.ModelSerializer):
         """Return the addons of the category."""
         addons = Addon.objects.filter(category=obj)
         return AddonSerializer(addons, many=True).data
-    
+
+ 
 class ItemVariantSerializer(serializers.ModelSerializer):
     variant_slug = serializers.SerializerMethodField()
     name = serializers.SerializerMethodField()
@@ -66,6 +70,7 @@ class ItemVariantSerializer(serializers.ModelSerializer):
     def get_variant_slug(self, obj):
         """Return the sorted variant IDs joined by a dash."""
         return '-'.join([str(variant.id) for variant in sorted(obj.variant.all(), key=lambda v: v.id)])
+
 
 class FoodItemSerializer(serializers.ModelSerializer):
     addons = AddonSerializer(many=True, read_only=True)
@@ -216,6 +221,7 @@ class FoodItemSerializer(serializers.ModelSerializer):
             representation['variants'] = None
         return representation
 
+
 class CartItemSerializer(serializers.ModelSerializer):
     food_item = FoodItemSerializer()
     addons = AddonSerializer(many=True)
@@ -238,6 +244,7 @@ class CartItemSerializer(serializers.ModelSerializer):
                 "price": float(obj.variant.price)
             }
 
+
 class SubCategorySerializer(serializers.ModelSerializer):
     food_items = FoodItemSerializer(many=True, read_only=True)
 
@@ -245,17 +252,19 @@ class SubCategorySerializer(serializers.ModelSerializer):
         model = SubCategory
         fields = ['id', 'name', 'food_items']
 
+
 class FoodCategorySerializer(serializers.ModelSerializer):
     sub_categories = SubCategorySerializer(many=True, read_only=True)
     food_items = serializers.SerializerMethodField()
 
     class Meta:
         model = FoodCategory
-        fields = ['id', 'name', 'sub_categories', 'food_items']
+        fields = ['id', 'name', 'sub_categories', 'food_items', 'active', 'image_url', 'slug']
 
     def get_food_items(self, obj):
         """Return food items directly under this category (those without a subcategory)."""
         return FoodItemSerializer(obj.food_items.filter(food_subcategory__isnull=True), many=True).data
+
 
 class OutletSerializer(serializers.ModelSerializer):
     SERVICE_CHOICES = [
@@ -288,7 +297,27 @@ class OutletSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Outlet
-        fields = ['id', 'name', 'lite', 'payment_link', 'rating', 'menu_slug', 'description', 'address', 'location', 'minimum_order_value', 'average_preparation_time', 'email', 'phone', 'whatsapp', 'logo', 'gallery', 'shop', 'services', 'type', 'payment_methods', 'slug']
+        fields = [
+            'id',
+            'name',
+            'payment_link',
+            'rating',
+            'menu_slug',
+            'description',
+            'address',
+            'location',
+            'minimum_order_value',
+            'average_preparation_time',
+            'email',
+            'phone',
+            'whatsapp',
+            'logo',
+            'gallery',
+            'shop',
+            'services',
+            'type',
+            'payment_methods',
+            'slug']
         depth = 2
 
     def get_menu_slug(self, obj):
@@ -325,6 +354,39 @@ class OutletSerializer(serializers.ModelSerializer):
         internal_value['services'] = ','.join(internal_value['services'])
         return internal_value
 
+
+class OwnerOutletSerializer(OutletSerializer):
+    operational_timings = serializers.SerializerMethodField()
+    is_open = serializers.SerializerMethodField()
+
+    class Meta(OutletSerializer.Meta):
+        model = Outlet
+        fields = [
+            'outlet_type',
+            'operational_timings',
+            'is_open'
+        ]
+    
+    def get_operational_timings(self, obj):
+        """Return the operational timings."""
+        timings = OperatingHours.objects.filter(outlet=obj)
+        return [{
+            "day": timing.day_of_week,
+            "active": timing.active,
+            "opening_time": timing.opening_time,
+            "closing_time": timing.closing_time
+        } for timing in timings]
+        
+    def get_is_open(self, obj):
+        """Return whether the outlet is open."""
+        return obj.is_open()
+
+
+class CustomerOutletSerializer(OutletSerializer):
+    class Meta(OutletSerializer.Meta):
+        model = Outlet
+
+
 class OrderItemSerializer(serializers.ModelSerializer):
     food_item = FoodItemSerializer()
     addons = AddonSerializer(many=True)
@@ -345,11 +407,13 @@ class OrderItemSerializer(serializers.ModelSerializer):
         """Return the total price of the order item."""
         return obj.get_total_price()
 
+
 class OrderTimelineSerializer(serializers.Serializer):
     class Meta:
         model = OrderTimelineItem
         ordering = ['created_at']
         fields = ['stage', 'done', 'content', 'created_at']
+
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True)
@@ -416,10 +480,12 @@ class OrderSerializer(serializers.ModelSerializer):
         """Return the average preparation time of the order."""
         return obj.outlet.average_preparation_time
 
+
 class CheckoutSerializer(serializers.Serializer):
     class Meta:
         model = Order
         fields = ["user", "outlet", "total", "status", "order_type", "table", "cooking_instructions"]
+
 
 class TableSerializer(serializers.ModelSerializer):
     area = serializers.SerializerMethodField()
@@ -442,11 +508,13 @@ class TableSerializer(serializers.ModelSerializer):
         """Return the outlet name of the table."""
         return obj.outlet.name if obj.outlet else None
 
+
 class AreaSerializer(serializers.ModelSerializer):
     outlet = OutletSerializer()
     class Meta:
         model = TableArea
         fields = ['id', 'name', 'outlet']
+
 
 class DiscountCouponDetailSerializer(serializers.ModelSerializer):
     is_active = serializers.SerializerMethodField()
@@ -476,6 +544,7 @@ class DiscountCouponDetailSerializer(serializers.ModelSerializer):
         """Calculate if the coupon is active."""
         today = timezone.now().date()
         return obj.valid_from <= today <= obj.valid_to
+
 
 class DiscountCouponSerializer(serializers.ModelSerializer):
     is_applicable = serializers.SerializerMethodField()
