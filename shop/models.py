@@ -23,7 +23,40 @@ class Shop(models.Model):
         ordering = ['name']
 
 
+class OperatingHours(models.Model):
+    DAYS_OF_WEEK = [
+        ('Monday', 'Monday'),
+        ('Tuesday', 'Tuesday'),
+        ('Wednesday', 'Wednesday'),
+        ('Thursday', 'Thursday'),
+        ('Friday', 'Friday'),
+        ('Saturday', 'Saturday'),
+        ('Sunday', 'Sunday'),
+    ]
+
+    outlet = models.ForeignKey("Outlet", on_delete=models.CASCADE, related_name='operating_hours')
+    day_of_week = models.CharField(max_length=9, choices=DAYS_OF_WEEK)
+    opening_time = models.TimeField()
+    closing_time = models.TimeField()
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('outlet', 'day_of_week')  # Ensures no duplicate entries for the same day of the week
+        verbose_name_plural = 'Operating Hours'
+
+    def __str__(self):
+        return f"{self.outlet.name} - {self.day_of_week}: {self.opening_time} to {self.closing_time}"
+
+
 class Outlet(models.Model):
+    OUTLET_TYPE_CHOICES = (
+        ('restaurant', 'Restaurant'),
+        ('cafe', 'Cafe'),
+        ('bakery', 'Bakery'),
+        ('sweet_shop', 'Sweet Shop'),
+        ('lite', 'Lite')
+    )
+
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
@@ -38,7 +71,7 @@ class Outlet(models.Model):
     type = models.CharField(max_length=100, default='veg')
     payment_methods = models.CharField(max_length=100, default='online')
 
-    lite = models.BooleanField(default=False)
+    outlet_type = models.CharField(max_length=100, choices=OUTLET_TYPE_CHOICES, default='restaurant')
     payment_link = models.CharField(max_length=1000, blank=True, null=True)
 
     email = models.EmailField(null=True, blank=True)
@@ -49,7 +82,7 @@ class Outlet(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     outlet_manager = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='outlets', blank=True, null=True)
 
     def __str__(self):
@@ -61,9 +94,52 @@ class Outlet(models.Model):
         outlet_name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
         self.slug = f"{shop_name}-{outlet_name}"
         super(Outlet, self).save(*args, **kwargs)
-    
+
+    def is_open(self):
+        # Get the current day of the week
+        current_day = timezone.now().strftime('%A')
+        # Get the OperatingHours for the current day
+        today_hours = OperatingHours.objects.filter(outlet=self, day_of_week=current_day)
+        print(current_day, 'current day')
+        print(today_hours, 'today hours')
+        # Check if there are any OperatingHours for the current day
+        if today_hours.exists():
+            # Get the first OperatingHours object
+            today_hours = today_hours.first()
+            # Get the current time
+            current_time = timezone.now().time()
+
+            print(current_time, 'current time', today_hours.opening_time, today_hours.closing_time)
+            # Check if the current time is between the opening and closing times
+            if today_hours.opening_time <= current_time <= today_hours.closing_time:
+                return True
+        return False
+
     class Meta:
         ordering = ['name']
+
+
+@receiver(post_save, sender=Outlet)
+def create_operating_hours(sender, instance, created, **kwargs):
+    if created:
+        # Define default opening and closing times
+        default_opening_time = '13:00:00'  # 1 PM
+        default_closing_time = '23:00:00'  # 11 PM
+
+        # List of all days of the week
+        days_of_week = [
+            'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+            'Friday', 'Saturday', 'Sunday'
+        ]
+
+        # Create OperatingHours for each day
+        for day in days_of_week:
+            OperatingHours.objects.create(
+                outlet=instance,
+                day_of_week=day,
+                opening_time=default_opening_time,
+                closing_time=default_closing_time
+            )
 
 
 class OutletDocument(models.Model):
@@ -92,54 +168,6 @@ class OutletImage(models.Model):
 
     def __str__(self):
         return f"Image {self.id} for {self.outlet.name}"
-
-
-class OperatingHours(models.Model):
-    DAYS_OF_WEEK = [
-        ('Monday', 'Monday'),
-        ('Tuesday', 'Tuesday'),
-        ('Wednesday', 'Wednesday'),
-        ('Thursday', 'Thursday'),
-        ('Friday', 'Friday'),
-        ('Saturday', 'Saturday'),
-        ('Sunday', 'Sunday'),
-    ]
-
-    outlet = models.ForeignKey(Outlet, on_delete=models.CASCADE, related_name='operating_hours')
-    day_of_week = models.CharField(max_length=9, choices=DAYS_OF_WEEK)
-    opening_time = models.TimeField()
-    closing_time = models.TimeField()
-
-    class Meta:
-        unique_together = ('outlet', 'day_of_week')  # Ensures no duplicate entries for the same day of the week
-        verbose_name_plural = 'Operating Hours'
-        
-
-    def __str__(self):
-        return f"{self.outlet.name} - {self.day_of_week}: {self.opening_time} to {self.closing_time}"
-
-
-@receiver(post_save, sender=Outlet)
-def create_operating_hours(sender, instance, created, **kwargs):
-    if created:
-        # Define default opening and closing times
-        default_opening_time = '13:00:00'  # 1 PM
-        default_closing_time = '23:00:00'  # 11 PM
-
-        # List of all days of the week
-        days_of_week = [
-            'Monday', 'Tuesday', 'Wednesday', 'Thursday', 
-            'Friday', 'Saturday', 'Sunday'
-        ]
-
-        # Create OperatingHours for each day
-        for day in days_of_week:
-            OperatingHours.objects.create(
-                outlet=instance,
-                day_of_week=day,
-                opening_time=default_opening_time,
-                closing_time=default_closing_time
-            )
 
 
 class Menu(models.Model):
@@ -268,11 +296,13 @@ class FoodItem(models.Model):
         menu_slug = self.menu.menu_slug
         name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
         self.slug = f"{menu_slug}-{name}"
-
-        if self.image:
-            self.image_url = f"https://api.tacoza.co{settings.MEDIA_URL}/{self.image.name}"
         super(FoodItem, self).save(*args, **kwargs)
 
+@receiver(post_save, sender=FoodItem)
+def save_food_image_url(sender, instance, created, **kwargs):
+    if instance.image and not instance.image_url:
+        instance.image_url = f"{settings.HOST}{instance.image.url}"
+        instance.save()
 
 class FoodTag(models.Model):
     name = models.CharField(max_length=100)
@@ -289,20 +319,40 @@ class FoodTag(models.Model):
 class FoodCategory(models.Model):
     menu = models.ForeignKey('Menu', on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
+    image = models.ImageField(upload_to='category_images/', blank=True, null=True)
+    image_url = models.URLField(blank=True, null=True)
+    slug = models.SlugField(max_length=100, unique=True, blank=True, null=True)
     order = models.PositiveIntegerField(default=0)
+    active = models.BooleanField(default=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        # slug should be all lowercase and separated by hyphens and alphanumeric
+        menu_slug = self.menu.menu_slug
+        name = re.sub(r'[^a-zA-Z0-9]', '', self.name.lower().replace(' ', '-'))
+        self.slug = f"{menu_slug}-{name}"
+        super(FoodCategory, self).save(*args, **kwargs)
+
     def __str__(self):
-        return self.name
+        return f"{self.menu} - {self.name}"
 
     class Meta:
         ordering = ['name']
+
+@receiver(post_save, sender=FoodCategory)
+def save_category_image_url(sender, instance, created, **kwargs):
+    if instance.image and not instance.image_url:
+        instance.image_url = f"{settings.HOST}{instance.image.url}"
+        instance.save()
 
 
 class SubCategory(models.Model):
     category = models.ForeignKey(FoodCategory, on_delete=models.CASCADE, related_name='sub_categories')
     name = models.CharField(max_length=100)
+    active = models.BooleanField(default=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -502,7 +552,7 @@ class Table(models.Model):
         self.url = short_url
         self.save()
         return f"https://api.tacoza.co/{short_url.short_code}"
-        
+
     class Meta:
         ordering = ['name']
 
@@ -574,7 +624,7 @@ class DiscountCoupon(models.Model):
         Counts how many times this coupon has been used across all orders.
         """
         return Order.objects.filter(offer=self).count()
-    
+
     class Meta:
         ordering = ['created_at']
 
