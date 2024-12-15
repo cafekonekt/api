@@ -362,9 +362,30 @@ class OwnerOutletSerializer(OutletSerializer):
     class Meta(OutletSerializer.Meta):
         model = Outlet
         fields = [
+            'id',
+            'name',
+            'payment_link',
+            'rating',
+            'menu_slug',
+            'description',
+            'address',
+            'location',
+            'minimum_order_value',
+            'average_preparation_time',
+            'email',
+            'phone',
+            'whatsapp',
+            'logo',
+            'gallery',
+            'shop',
+            'services',
+            'type',
+            'payment_methods',
+            'slug',
             'outlet_type',
             'operational_timings',
-            'is_open'
+            'is_open',
+            'name'
         ]
     
     def get_operational_timings(self, obj):
