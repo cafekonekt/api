@@ -32,6 +32,8 @@ DEBUG = os.environ.get('DJANGO_DEBUG', False)
 
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS').split(',')
 
+HOST = os.environ.get("HOST", default="http://localhost:8000")
+
 FAST2SMS_API_KEY=os.getenv('FAST2SMS_API_KEY')
 
 CASHFREE_CLIENT_ID=os.getenv('CASHFREE_CLIENT_ID')
@@ -205,10 +207,8 @@ CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS').split(",")
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'Asia/Kolkata'
-
-USE_I18N = True
-
-USE_TZ = True
+# USE_TZ = True
+USE_I18N = True 
 
 WEBPUSH_SETTINGS = {
     "VAPID_PUBLIC_KEY": os.getenv('VAPID_PUBLIC_KEY'),

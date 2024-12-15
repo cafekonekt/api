@@ -2,6 +2,7 @@ from django.urls import path
 from shop.api.views import (
     FoodCategoryListCreateView,
     FoodItemListCreateView,
+    FoodItemByCategory,
     FoodItemDetailView,
     AddonCategoryListCreateView,
     AddonCategoryDetailView,
@@ -13,7 +14,7 @@ from shop.api.views import (
     LiveOrders,
     OrderDetailAPIView,
     SettelmentStatusAPIView,
-    OutletListView,
+    OutleDetailView,
     OutletListCreateView,
     OutletDetailView,
     TableListView,
@@ -40,6 +41,7 @@ urlpatterns = [
     path('menu/<slug:menu_slug>/', FoodCategoryListCreateView.as_view(), name='food-category'),
 
     path('food-items/', FoodItemListCreateView.as_view(), name='food-item'),
+    path('food-items-category/<slug:slug>', FoodItemByCategory.as_view(), name='food-item-by-category'),
     path('food-items/<slug:slug>/', FoodItemDetailView.as_view(), name='food-item-detail'),
 
     path('addon-categories/', AddonCategoryListCreateView.as_view(), name='addon-category'),
@@ -60,7 +62,7 @@ urlpatterns = [
     path('get-payments/<int:days>', SettelmentStatusAPIView.as_view(), name='orders'),
 
     path('list-outlets/', OutletsListAPIView.as_view(), name='outlet'),
-    path('outlet/<slug:menu_slug>', OutletListView.as_view(), name='outlet'),
+    path('outlet/<slug:menu_slug>', OutleDetailView.as_view(), name='outlet'),
     path('outlet/', OutletListCreateView.as_view(), name='outlet'),
     path('outlet/<int:pk>/', OutletDetailView.as_view(), name='outlet-detail'),
 
